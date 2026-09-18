@@ -27,7 +27,24 @@ Exactly three, all optional:
 | --- | --- | --- |
 | `PR_MANAGER_ACCOUNT` | active `gh` account | Which logged-in GitHub CLI account to scan as, when more than one is signed in. Resolves that account's token via `gh auth token -u <login>` rather than switching the machine's active `gh` account. |
 | `PR_MANAGER_PORT` | `4317` | Which port to serve the dashboard on. |
-| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change (FR-8). |
+| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change (FR-8). See [Desktop notifications](#desktop-notifications) for what actually works on which platform. |
+
+## Desktop notifications
+
+One native OS notification per scan, only when something actually changed, and never one per PR
+(FR-8). It is a single shell call to whatever the platform already ships — there is no bundled
+notification library. Set `PR_MANAGER_NOTIFY=off` to turn it off entirely.
+
+Platform support is uneven, and only Linux has been verified:
+
+| Platform | Mechanism | State |
+| --- | --- | --- |
+| Linux | `notify-send` | **Tested.** The notification is reliable. The "Open dashboard" button is not: under a Portal/confined notification backend (common on GNOME) libnotify drops actions, so the button may never appear. |
+| macOS | `osascript` | **Untested** — no machine to verify against. Expected to display; no click-through. |
+| Windows | PowerShell `NotifyIcon` balloon | **Untested** — written without a Windows machine to run it on. It may not appear at all: balloon tips are legacy and Windows 10/11 reroute them through the toast system, where Focus Assist and per-app notification settings can suppress them for a tray icon with no registered app identity. No click-through. |
+
+If you run this on Windows or macOS and the popup does or doesn't show up, that is worth knowing —
+the Windows path in particular is a best-effort guess, not a verified feature.
 
 ## Tunables
 
