@@ -275,56 +275,28 @@ function renderTabs() {
   }
 }
 
-// --- summary: one hero figure, a small tile row, and the status mix ---
+// --- summary: a quiet row of counters ---
 
 function renderSummary(sets, prs) {
-  const waitingOnYou = sets.filter((s) => s.owner === "you").length;
   const ready = sets.filter((s) => s.status === "READY_TO_MERGE").length;
   const rotting = sets.filter((s) => s.status === "STALE").length;
   const blocked = sets.filter((s) => ["CONFLICTED", "CI_FAILING", "CHANGES_REQUESTED"].includes(s.status)).length;
 
-  const counts = new Map(STATUS_ORDER.map((s) => [s, 0]));
-  for (const pr of prs) counts.set(pr.status, (counts.get(pr.status) ?? 0) + 1);
-  const present = STATUS_ORDER.filter((s) => counts.get(s) > 0);
-
-  const distBar = present
-    .map((s) => {
-      const meta = statusMeta(s);
-      return `<div class="dist-seg" style="flex:${counts.get(s)};background:${meta.color}"></div>`;
-    })
-    .join("");
-
-  const distLegend = present
-    .map((s) => {
-      const meta = statusMeta(s);
-      return html`<span class="dist-item"><span class="swatch" style="background:${raw(meta.color)}"></span><span class="n">${counts.get(s)}</span> ${meta.label}</span>`;
-    })
-    .join("");
-
-  const heroSub = waitingOnYou === 0
-    ? "Nothing is blocked on you right now."
-    : `Out of ${plural(sets.length, "open change set", "open change sets")}.`;
-
+  // A quiet, monochrome counter row — no hero figure and no status hues. "Waiting on you" is
+  // not repeated here: it is the heading of its own bucket below, where the sets it counts are
+  // actually listed, so the number and the work it refers to stay in one place.
   const tiles = [
     { value: prs.length, label: "Open PRs", icon: "layers" },
     { value: sets.length, label: "Change sets", icon: "gitBranch" },
-    { value: ready, label: "Ready to merge", icon: "checkCircle", color: "var(--sig-good)" },
-    { value: blocked + rotting, label: "Blocked or rotting", icon: "alertTriangle", color: "var(--sig-warn)" },
+    { value: ready, label: "Ready to merge", icon: "checkCircle" },
+    { value: blocked + rotting, label: "Blocked or rotting", icon: "alertTriangle" },
   ];
 
   els.summary.innerHTML = html`
-    <div class="hero ${raw(waitingOnYou === 0 ? "is-clear" : "")}">
-      <div>
-        <div class="hero-value">${waitingOnYou}</div>
-        <div class="hero-label">Change ${raw(waitingOnYou === 1 ? "set" : "sets")} waiting on you</div>
-        <div class="hero-sub">${heroSub}</div>
-      </div>
-      ${raw(present.length ? `<div class="dist"><div class="dist-bar">${distBar}</div><div class="dist-legend">${distLegend}</div></div>` : "")}
-    </div>
     <div class="tiles">
       ${raw(tiles.map((t) => html`<div class="tile">
         <div class="tile-value ${raw(t.value === 0 ? "is-zero" : "")}">${t.value}</div>
-        <div class="tile-label tile-accent">${raw(t.color ? `<span style="color:${t.color}">${icon(t.icon)}</span>` : icon(t.icon))}${t.label}</div>
+        <div class="tile-label tile-accent">${raw(icon(t.icon))}${t.label}</div>
       </div>`).join(""))}
     </div>`;
 }
