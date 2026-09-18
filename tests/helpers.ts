@@ -1,4 +1,4 @@
-import type { PullRequestFacts } from "../src/types.ts";
+import type { DerivedPullRequest, PullRequestFacts } from "../src/types.ts";
 
 /** A fully-populated, healthy-by-default PR. Override just the fields a test cares about. */
 export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
@@ -30,6 +30,23 @@ export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullReques
     lastCommentAt: null,
     lastReviewAt: null,
     body: "",
+    ...overrides,
+  };
+}
+
+/** A DerivedPullRequest with sane defaults, for change-set/alert/history tests. */
+export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): DerivedPullRequest {
+  const facts = makeFacts(overrides);
+  return {
+    ...facts,
+    status: "NEEDS_REVIEW",
+    owner: "reviewers",
+    lastActivityAt: facts.createdAt,
+    isSpecPR: false,
+    breakingDeclaration: "NOT_BREAKING",
+    branchSetKey: facts.headRefName,
+    setKey: facts.headRefName,
+    manuallyLinked: false,
     ...overrides,
   };
 }
