@@ -8,30 +8,44 @@
 </head>
 <body>
 
-<header class="app-header">
-  <div class="header-left">
-    <h1>Pull Request Manager</h1>
-    <div id="scan-meta" class="scan-meta">Loading…</div>
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h1>Pull Request Manager</h1>
+    </div>
+    <div id="scan-meta" class="scan-meta">Starting up…</div>
+    <button id="refresh-btn" type="button" class="btn btn-refresh">
+      <span class="btn-icon" id="refresh-icon" aria-hidden="true"></span>
+      <span id="refresh-label">Refresh</span>
+    </button>
   </div>
-  <button id="refresh-btn" type="button" class="btn">Refresh</button>
+  <nav class="tabs" id="tabs" aria-label="Views">
+    <button data-view="overview" class="tab" type="button">Overview <span class="tab-count" id="count-overview"></span></button>
+    <button data-view="mine" class="tab" type="button">My PRs <span class="tab-count" id="count-mine"></span></button>
+    <button data-view="review" class="tab" type="button">To review <span class="tab-count" id="count-review"></span></button>
+  </nav>
 </header>
 
-<nav class="tabs" id="tabs">
-  <button data-view="overview" class="tab-btn">Overview <span class="count" id="count-overview"></span></button>
-  <button data-view="mine" class="tab-btn">My PRs <span class="count" id="count-mine"></span></button>
-  <button data-view="review" class="tab-btn">To review <span class="count" id="count-review"></span></button>
-</nav>
+<div id="error-banner" class="error-banner hidden" role="status"></div>
 
-<main id="main">
-  <section id="stat-tiles" class="stat-tiles" aria-label="Stats"></section>
-  <section id="alerts-section" class="alerts-section" aria-label="Contract alerts"></section>
-  <section id="changes-section" class="changes-section" aria-label="Changes"></section>
-  <section id="connections-section" class="connections-section" aria-label="Connections"></section>
-  <section id="buckets-section" class="buckets-section" aria-label="PR buckets"></section>
+<main class="shell" id="main">
+  <section id="summary" class="summary" aria-label="Summary"></section>
+
+  <div class="columns">
+    <div class="col-main">
+      <section id="connections-section" class="connections-slot" aria-label="Change set connections"></section>
+    </div>
+    <div class="col-side">
+      <section id="changes-section" class="panel-slot" aria-label="Changes since your last visit"></section>
+    </div>
+  </div>
+
+  <section id="buckets-section" class="buckets" aria-label="Pull requests by what they need"></section>
 </main>
 
 <div id="drawer-scrim" class="drawer-scrim hidden"></div>
-<aside id="drawer" class="drawer hidden" aria-label="PR detail"></aside>
+<aside id="drawer" class="drawer hidden" aria-label="Pull request detail" tabindex="-1"></aside>
 
 <script type="module" src="/app.js"></script>
 </body>

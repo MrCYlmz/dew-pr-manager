@@ -9,16 +9,61 @@ const LAST_VISIT_KEY = "prManagerLastVisit";
 const sessionCutoff = localStorage.getItem(LAST_VISIT_KEY);
 localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
 
-const STATUS_META = {
-  DRAFT: { label: "Draft", color: "var(--status-draft)" },
-  CONFLICTED: { label: "Conflicted", color: "var(--status-conflicted)" },
-  CI_FAILING: { label: "CI failing", color: "var(--status-ci_failing)" },
-  CHANGES_REQUESTED: { label: "Changes requested", color: "var(--status-changes_requested)" },
-  REVIEW_STALE: { label: "Review stale", color: "var(--status-review_stale)" },
-  READY_TO_MERGE: { label: "Ready to merge", color: "var(--status-ready_to_merge)" },
-  STALE: { label: "Stale", color: "var(--status-stale)" },
-  NEEDS_REVIEW: { label: "Needs review", color: "var(--status-needs_review)" },
+// --- icons: one 24x24 stroke path set, drawn in currentColor so they theme themselves. ---
+
+const ICON_PATHS = {
+  check: "M20 6L9 17l-5-5",
+  checkCircle: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3",
+  xCircle: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM15 9l-6 6M9 9l6 6",
+  alertTriangle: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01",
+  cornerUpLeft: "M9 14L4 9l5-5M20 20v-7a4 4 0 0 0-4-4H4",
+  rotateCw: "M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10",
+  clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2",
+  eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z",
+  x: "M18 6L6 18M6 6l12 12",
+  externalLink: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3",
+  gitBranch: "M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9",
+  note: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  link: "M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8",
+  inbox: "M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+  bot: "M12 8V4H8M4 8h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2",
+  zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  layers: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+  user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  alertCircle: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01",
 };
+
+function icon(name, cls = "") {
+  const d = ICON_PATHS[name];
+  if (!d) return "";
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
+/**
+ * The status vocabulary, as the UI presents it (FR-2.4 order).
+ *
+ * One hue per status — no two statuses share a colour. The hexes behind these tokens were
+ * chosen by measurement (see the note at the top of styles.css); each status still ships a
+ * distinct icon and a text label, so colour is never the only channel.
+ */
+const STATUS_META = {
+  DRAFT: { label: "Draft", color: "var(--st-draft)", icon: "edit" },
+  CONFLICTED: { label: "Conflicted", color: "var(--st-conflicted)", icon: "alertTriangle" },
+  CI_FAILING: { label: "CI failing", color: "var(--st-ci-failing)", icon: "xCircle" },
+  CHANGES_REQUESTED: { label: "Changes requested", color: "var(--st-changes-requested)", icon: "cornerUpLeft" },
+  REVIEW_STALE: { label: "Review stale", color: "var(--st-review-stale)", icon: "rotateCw" },
+  READY_TO_MERGE: { label: "Ready to merge", color: "var(--st-ready)", icon: "checkCircle" },
+  STALE: { label: "Rotting", color: "var(--st-rotting)", icon: "clock" },
+  NEEDS_REVIEW: { label: "Needs review", color: "var(--st-needs-review)", icon: "eye" },
+};
+
+const STATUS_ORDER = Object.keys(STATUS_META);
+
+function statusMeta(status) {
+  return STATUS_META[status] ?? { label: status, color: "var(--ink-muted)", icon: "alertCircle" };
+}
 
 // --- tiny safe-HTML templating: escapes every interpolated value unless wrapped in raw(). ---
 
@@ -49,8 +94,29 @@ function timeAgo(iso) {
   return `${mins}m ago`;
 }
 
-function statusMeta(status) {
-  return STATUS_META[status] ?? { label: status, color: "var(--text-muted)" };
+/** Compact age for a chip: "3d", "5h", "12m". */
+function shortAge(iso) {
+  if (!iso) return "?";
+  const ms = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(ms / 86400000);
+  if (days >= 1) return `${days}d`;
+  const hours = Math.floor(ms / 3600000);
+  if (hours >= 1) return `${hours}h`;
+  return `${Math.max(0, Math.floor(ms / 60000))}m`;
+}
+
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** "acme/widgets#12" -> "widgets#12": the org repeats on every row and carries no signal. */
+function shortRef(pr) {
+  return `${pr.repoName ?? pr.repo}#${pr.number}`;
+}
+
+/** The same trim for a bare PR key from the history log, which has no repoName field. */
+function shortKey(prKey) {
+  return prKey.includes("/") ? prKey.slice(prKey.indexOf("/") + 1) : prKey;
 }
 
 // --- state ---
@@ -58,20 +124,24 @@ function statusMeta(status) {
 let appState = null;
 let currentView = new URLSearchParams(location.search).get("view") || "overview";
 let drawerPrKey = null;
-let linkSelectValue = null;
 
 const els = {
   scanMeta: document.getElementById("scan-meta"),
-  tiles: document.getElementById("stat-tiles"),
-  alerts: document.getElementById("alerts-section"),
+  errorBanner: document.getElementById("error-banner"),
+  summary: document.getElementById("summary"),
   changes: document.getElementById("changes-section"),
   connections: document.getElementById("connections-section"),
   buckets: document.getElementById("buckets-section"),
   drawer: document.getElementById("drawer"),
   scrim: document.getElementById("drawer-scrim"),
   refreshBtn: document.getElementById("refresh-btn"),
+  refreshIcon: document.getElementById("refresh-icon"),
+  refreshLabel: document.getElementById("refresh-label"),
   tabs: document.getElementById("tabs"),
+  shell: document.getElementById("main"),
 };
+
+els.refreshIcon.innerHTML = icon("rotateCw");
 
 async function fetchState({ skipDrawer = false } = {}) {
   const res = await fetch("/api/state");
@@ -81,14 +151,17 @@ async function fetchState({ skipDrawer = false } = {}) {
 
 async function refresh() {
   els.refreshBtn.disabled = true;
-  els.refreshBtn.textContent = "Refreshing…";
+  els.refreshLabel.textContent = "Scanning…";
+  // Anti-pattern to avoid: a skeleton flash on refetch. Hold the last render, dim it.
+  els.shell.classList.add("is-refetching");
   try {
     const res = await fetch("/api/refresh", { method: "POST" });
     appState = await res.json();
     render({ skipDrawer: drawerPrKey != null });
   } finally {
     els.refreshBtn.disabled = false;
-    els.refreshBtn.textContent = "Refresh";
+    els.refreshLabel.textContent = "Refresh";
+    els.shell.classList.remove("is-refetching");
   }
 }
 
@@ -141,65 +214,228 @@ function render({ skipDrawer = false } = {}) {
   renderHeader();
   renderTabs();
   if (!appState) return;
+
+  if (!appState.meta) {
+    renderFirstRun();
+    return;
+  }
+
+  els.shell.classList.remove("is-firstrun");
   const sets = visibleSets();
-  const visibleKeys = new Set(sets.flatMap((s) => s.members.map((m) => m.key)));
-  renderStatTiles(sets);
-  renderAlerts(visibleKeys);
-  renderChanges(visibleKeys);
-  renderConnections(sets);
+  const prs = sets.flatMap((s) => s.members);
+  renderSummary(sets, prs);
   renderBuckets(sets);
+  renderChanges(new Set(prs.map((p) => p.key)));
+  renderConnections(sets);
   if (!skipDrawer) renderDrawer();
 }
 
+function renderFirstRun() {
+  els.shell.classList.add("is-firstrun");
+  els.summary.innerHTML = "";
+  els.changes.innerHTML = "";
+  els.connections.innerHTML = "";
+  els.buckets.innerHTML = html`<div class="empty empty-big">
+    ${raw(icon("inbox"))}
+    <div>Scanning GitHub for the first time…</div>
+    <div style="margin-top:4px">Your PRs will appear here as soon as the first scan finishes.</div>
+  </div>`;
+}
+
 function renderHeader() {
-  if (!appState || !appState.meta) {
-    els.scanMeta.textContent = "Scanning for the first time…";
+  if (!appState) {
+    els.scanMeta.textContent = "Starting up…";
     return;
   }
+  if (!appState.meta) {
+    els.scanMeta.innerHTML = html`<span class="scan-dot is-scanning"></span>First scan running…`;
+    els.errorBanner.classList.add("hidden");
+    return;
+  }
+
   const { scannedAt, ranAs, error } = appState.meta;
-  const scanningNote = appState.scanning ? " · scanning now…" : "";
-  els.scanMeta.innerHTML = html`Last scan ${timeAgo(scannedAt)} as <strong>${ranAs}</strong>${raw(escapeHtml(scanningNote))}${raw(
-    error ? `<div class="error">Last scan failed: ${escapeHtml(error)} — showing the last good data.</div>` : "",
-  )}`;
+  const dotClass = error ? "is-error" : appState.scanning ? "is-scanning" : "";
+  const tail = appState.scanning ? " · scanning now" : "";
+  els.scanMeta.innerHTML = html`<span class="scan-dot ${raw(dotClass)}"></span>Last scan ${timeAgo(scannedAt)} as <strong>${ranAs}</strong>${tail}`;
+
+  if (error) {
+    els.errorBanner.innerHTML = html`${raw(icon("alertTriangle"))}<div><strong>Last scan failed.</strong> ${error} — showing the last good data.</div>`;
+    els.errorBanner.classList.remove("hidden");
+  } else {
+    els.errorBanner.classList.add("hidden");
+  }
 }
 
 function renderTabs() {
   for (const btn of els.tabs.querySelectorAll("[data-view]")) {
-    btn.classList.toggle("active", btn.dataset.view === currentView);
+    btn.classList.toggle("is-active", btn.dataset.view === currentView);
   }
-  document.getElementById("count-overview").textContent = appState ? `(${countForView("overview")})` : "";
-  document.getElementById("count-mine").textContent = appState ? `(${countForView("mine")})` : "";
-  document.getElementById("count-review").textContent = appState ? `(${countForView("review")})` : "";
+  for (const [view, id] of [["overview", "count-overview"], ["mine", "count-mine"], ["review", "count-review"]]) {
+    document.getElementById(id).textContent = appState?.meta ? countForView(view) : "";
+  }
 }
 
-// --- stat tiles ---
+// --- summary: one hero figure, a small tile row, and the status mix ---
 
-function renderStatTiles(sets) {
-  const uniquePrs = new Set(sets.flatMap((s) => s.members.map((m) => m.key))).size;
-  const tiles = [
-    { label: "Change sets waiting on you", value: sets.filter((s) => s.owner === "you").length, hero: true },
-    { label: "Open PRs", value: uniquePrs },
-    { label: "Change sets", value: sets.length },
-    { label: "Ready to merge", value: sets.filter((s) => s.status === "READY_TO_MERGE").length },
-    { label: "Rotting", value: sets.filter((s) => s.status === "STALE").length },
-    { label: "Contract alerts", value: appState.alerts.filter((a) => sets.some((s) => s.members.some((m) => m.key === a.prKey))).length },
-  ];
-  els.tiles.innerHTML = tiles
-    .map((t) => html`<div class="tile ${raw(t.hero ? "hero" : "")}"><div class="value">${t.value}</div><div class="label">${t.label}</div></div>`)
+function renderSummary(sets, prs) {
+  const waitingOnYou = sets.filter((s) => s.owner === "you").length;
+  const ready = sets.filter((s) => s.status === "READY_TO_MERGE").length;
+  const rotting = sets.filter((s) => s.status === "STALE").length;
+  const blocked = sets.filter((s) => ["CONFLICTED", "CI_FAILING", "CHANGES_REQUESTED"].includes(s.status)).length;
+
+  const counts = new Map(STATUS_ORDER.map((s) => [s, 0]));
+  for (const pr of prs) counts.set(pr.status, (counts.get(pr.status) ?? 0) + 1);
+  const present = STATUS_ORDER.filter((s) => counts.get(s) > 0);
+
+  const distBar = present
+    .map((s) => {
+      const meta = statusMeta(s);
+      return `<div class="dist-seg" style="flex:${counts.get(s)};background:${meta.color}"></div>`;
+    })
     .join("");
+
+  const distLegend = present
+    .map((s) => {
+      const meta = statusMeta(s);
+      return html`<span class="dist-item"><span class="swatch" style="background:${raw(meta.color)}"></span><span class="n">${counts.get(s)}</span> ${meta.label}</span>`;
+    })
+    .join("");
+
+  const heroSub = waitingOnYou === 0
+    ? "Nothing is blocked on you right now."
+    : `Out of ${plural(sets.length, "open change set", "open change sets")}.`;
+
+  const tiles = [
+    { value: prs.length, label: "Open PRs", icon: "layers" },
+    { value: sets.length, label: "Change sets", icon: "gitBranch" },
+    { value: ready, label: "Ready to merge", icon: "checkCircle", color: "var(--sig-good)" },
+    { value: blocked + rotting, label: "Blocked or rotting", icon: "alertTriangle", color: "var(--sig-warn)" },
+  ];
+
+  els.summary.innerHTML = html`
+    <div class="hero ${raw(waitingOnYou === 0 ? "is-clear" : "")}">
+      <div>
+        <div class="hero-value">${waitingOnYou}</div>
+        <div class="hero-label">Change ${raw(waitingOnYou === 1 ? "set" : "sets")} waiting on you</div>
+        <div class="hero-sub">${heroSub}</div>
+      </div>
+      ${raw(present.length ? `<div class="dist"><div class="dist-bar">${distBar}</div><div class="dist-legend">${distLegend}</div></div>` : "")}
+    </div>
+    <div class="tiles">
+      ${raw(tiles.map((t) => html`<div class="tile">
+        <div class="tile-value ${raw(t.value === 0 ? "is-zero" : "")}">${t.value}</div>
+        <div class="tile-label tile-accent">${raw(t.color ? `<span style="color:${t.color}">${icon(t.icon)}</span>` : icon(t.icon))}${t.label}</div>
+      </div>`).join(""))}
+    </div>`;
 }
 
-// --- contract alerts: hidden entirely when none (FR: "one line each") ---
+// --- PR rows and change-set cards ---
 
-function renderAlerts(visibleKeys) {
-  const alerts = appState.alerts.filter((a) => visibleKeys.has(a.prKey));
-  if (alerts.length === 0) {
-    els.alerts.innerHTML = "";
-    return;
+function statusChip(status) {
+  const meta = statusMeta(status);
+  return html`<span class="chip chip-status"><span class="swatch" style="background:${raw(meta.color)}"></span>${meta.label}</span>`;
+}
+
+function prRow(pr) {
+  const meta = statusMeta(pr.status);
+  const note = appState.notes[pr.key];
+  const flags = [
+    pr.authorIsBot ? html`<span class="chip chip-bot">bot</span>` : "",
+    pr.manuallyLinked ? html`<span class="chip chip-linked">linked</span>` : "",
+    note ? html`<span class="chip chip-note" title="${note.text}">${raw(icon("note"))}</span>` : "",
+  ].join("");
+
+  return html`<button type="button" class="pr-row" data-pr-key="${pr.key}" title="${pr.title}">
+    <span style="color:${raw(meta.color)};display:flex">${raw(icon(meta.icon, "st-icon"))}</span>
+    <span class="pr-line">
+      <span class="pr-ref">${raw(escapeHtml(shortRef(pr)))}</span>
+      <span class="pr-title">${pr.title}</span>
+    </span>
+    <span class="pr-right">
+      ${raw(flags)}
+      <span class="diff"><span class="add">+${pr.additions}</span> <span class="del">−${pr.deletions}</span></span>
+      <span class="chip chip-meta">${raw(shortAge(pr.lastActivityAt))}</span>
+      ${raw(statusChip(pr.status))}
+    </span>
+  </button>`;
+}
+
+function setCard(set) {
+  const meta = statusMeta(set.status);
+  const orderNote = set.mergeOrderKnown
+    ? html`${raw(icon("zap"))}Merge in this order — spec first, then consumers.`
+    : html`${raw(icon("alertCircle"))}Merge order unknown — no spec PR in this set, so nothing says which goes first.`;
+
+  return html`<div class="set">
+    <div class="set-head">
+      <span style="color:${raw(meta.color)};display:flex">${raw(icon("gitBranch", "set-icon"))}</span>
+      <span class="set-label">${set.label}</span>
+      <span class="set-meta">${plural(set.members.length, "PR", "PRs")}</span>
+      <span class="set-spacer"></span>
+      ${raw(set.hasManualLink ? html`<span class="chip chip-linked">has manual link</span>` : "")}
+      ${raw(statusChip(set.status))}
+    </div>
+    <div class="set-members ${raw(set.mergeOrderKnown ? "" : "order-unknown")}">
+      ${raw(set.members.map((m) => prRow(m)).join(""))}
+    </div>
+    <div class="set-note">${raw(orderNote)}</div>
+  </div>`;
+}
+
+// --- overview buckets ---
+// FR names exactly six buckets. A set whose owner is 'author' (blocked on someone other than
+// the viewer or "reviewers" generically — e.g. a PR you're reviewing that currently has merge
+// conflicts) has no home among those six; it stays reachable via the tabs/connections/drawer
+// instead of being force-fit into a bucket the spec didn't name.
+//
+// The array order is MATCH precedence (first match wins), which is not the display order:
+// a bot PR is a bot PR before it is anything else, and a set that is ready to merge belongs
+// under "Ready to merge" even though its owner is you. `rank` gives the display order the
+// spec asks for, most urgent first.
+const BUCKETS = [
+  { key: "bot", rank: 5, title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot", match: (s) => s.members.every((m) => m.authorIsBot) },
+  { key: "ready", rank: 1, title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle", match: (s) => s.status === "READY_TO_MERGE" },
+  { key: "draft", rank: 4, title: "Drafts", desc: "Not ready for review yet.", icon: "edit", match: (s) => s.status === "DRAFT" },
+  { key: "rotting", rank: 2, title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock", match: (s) => s.status === "STALE" },
+  { key: "you", rank: 0, title: "Waiting on you", desc: "The next move is yours.", icon: "user", match: (s) => s.owner === "you" },
+  { key: "reviewers", rank: 3, title: "Waiting on reviewers", desc: "Sitting with someone else for now.", icon: "users", match: (s) => s.owner === "reviewers" },
+];
+
+function bucketFor(set) {
+  return BUCKETS.find((b) => b.match(set)) ?? null;
+}
+
+function renderBuckets(sets) {
+  const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
+  for (const set of sets) {
+    const bucket = bucketFor(set);
+    if (bucket) grouped.get(bucket.key).push(set);
   }
-  els.alerts.innerHTML = html`<h2 class="section-title">Contract alerts</h2>${raw(
-    alerts.map((a) => html`<div class="alert-row"><a href="${a.prUrl}" target="_blank" rel="noopener">${a.prKey}</a> — ${a.message}</div>`).join(""),
-  )}`;
+
+  const sections = [...BUCKETS]
+    .sort((a, b) => a.rank - b.rank)
+    .filter((b) => grouped.get(b.key).length > 0)
+    .map((b) => {
+      const list = grouped.get(b.key);
+      const prCount = list.reduce((n, s) => n + s.members.length, 0);
+      const body = list
+        .map((s) => (s.members.length === 1 ? prRow(s.members[0]) : setCard(s)))
+        .join("");
+      return html`<section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">${b.title}</h2>
+          <span class="panel-count">${raw(plural(prCount, "PR", "PRs"))}</span>
+        </div>
+        <p class="panel-desc">${b.desc}</p>
+        <div class="panel-body">${raw(body)}</div>
+      </section>`;
+    })
+    .join("");
+
+  els.buckets.innerHTML = sections || html`<div class="empty empty-big">
+    ${raw(icon("inbox"))}
+    <div>Nothing open in this view.</div>
+  </div>`;
 }
 
 // --- changes since last visit (FR-7.25) ---
@@ -210,146 +446,250 @@ function renderChanges(visibleKeys) {
     .filter((e) => e.at >= cutoff && visibleKeys.has(e.prKey))
     .slice()
     .sort((a, b) => (a.at < b.at ? 1 : -1));
+
   if (events.length === 0) {
-    els.changes.innerHTML = "";
+    els.changes.innerHTML = html`<section class="panel">
+      <div class="panel-head"><h2 class="panel-title">Changes</h2></div>
+      <div class="empty">Nothing has moved since your last visit.</div>
+    </section>`;
     return;
   }
-  els.changes.innerHTML = html`<h2 class="section-title">Changes</h2>${raw(
-    events
-      .map(
-        (e) => html`<div class="change-row" data-pr-key="${e.prKey}">
-          <a href="${e.prUrl}" target="_blank" rel="noopener">${e.prKey}</a>
-          <span class="change-arrow">→</span>${raw(e.from ? statusMeta(e.from).label : "new")}
-          <span class="change-arrow">→</span>${raw(e.to ? statusMeta(e.to).label : "closed")}
-        </div>`,
-      )
-      .join(""),
-  )}`;
+
+  const rows = events
+    .map((e) => {
+      const from = e.from ? statusMeta(e.from) : null;
+      const to = e.to ? statusMeta(e.to) : null;
+      const fromLabel = from ? from.label : "New PR";
+      const toLabel = to ? to.label : "Merged or closed";
+      return html`<button type="button" class="change-row" data-pr-key="${e.prKey}" title="${e.prTitle}">
+        <span>
+          <span class="change-ref">${raw(escapeHtml(shortKey(e.prKey)))}</span>
+          <span class="change-flow">
+            ${raw(from ? `<span class="swatch" style="background:${from.color}"></span>` : "")}${fromLabel}
+            <span class="arrow">→</span>
+            ${raw(to ? `<span class="swatch" style="background:${to.color}"></span>` : "")}<span class="to">${toLabel}</span>
+          </span>
+        </span>
+        <span class="change-when">${raw(shortAge(e.at))}</span>
+      </button>`;
+    })
+    .join("");
+
+  els.changes.innerHTML = html`<section class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Changes</h2>
+      <span class="panel-count">${events.length}</span>
+    </div>
+    <p class="panel-desc">${raw(sessionCutoff ? "Since your last visit." : "In the last 24 hours.")}</p>
+    <div class="panel-body">${raw(rows)}</div>
+  </section>`;
 }
 
-// --- connections diagrams: spec PRs top row, consumers below, single bus (FR "Connections") ---
+// --- connections: the change-set map, and the reason this app exists (FR "Connections") ---
+//
+// Two layouts of the same diagram, chosen by how much width the panel actually has:
+//
+//  * Wide — the spec's shape. Spec PRs on a top row, consumers on a row beneath, joined by a
+//    SINGLE horizontal bus rather than one line per pair. Read it top to bottom: everything on
+//    the bus depends on what is above it.
+//  * Narrow (or a set too big to fit one row per tier) — the same graph stacked vertically,
+//    with the bus running down the left. Nothing is dropped, only re-flowed.
+//
+// The SVG is laid out in real pixels against the measured container width and its viewBox
+// matches 1:1, so nothing is ever scaled down into illegibility.
 
-function prNodeSvg(pr, x, y) {
-  const meta = statusMeta(pr.status);
-  const dashed = pr.manuallyLinked ? "stroke-dasharray=\"4,3\"" : "";
-  return `
-    <g class="pr-node" data-pr-key="${escapeHtml(pr.key)}" transform="translate(${x},${y})">
-      <rect width="150" height="46" rx="6" stroke="${meta.color}" ${dashed} />
-      <text x="8" y="16">${escapeHtml(pr.repo)}#${pr.number}</text>
-      <text x="8" y="30" class="meta">${escapeHtml(meta.label)} · ${timeAgo(pr.createdAt)}</text>
-      <text x="8" y="41" class="meta">+${pr.additions}/-${pr.deletions}</text>
+const NODE_W = 216;
+const NODE_H = 62;
+const GAP_X = 18;
+const GAP_Y = 26;
+
+const V_NODE_H = 34;
+const V_GAP = 9;
+const V_BUS_X = 14;
+const V_NODE_X = 30;
+
+function nodeBadge(x, y, text) {
+  return `<g class="node-badge">
+      <circle cx="${x}" cy="${y}" r="9" />
+      <text x="${x}" y="${y + 3.5}">${escapeHtml(text)}</text>
     </g>`;
+}
+
+/** A node in the wide layout: status rail, reference, status, age and size. */
+function wideNode(pr, x, y, order) {
+  const meta = statusMeta(pr.status);
+  const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
+  const textX = x + 14;
+  return `
+    <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
+      <rect class="node-box" x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="7"${dash} />
+      <rect class="node-rail" x="${x}" y="${y}" width="3" height="${NODE_H}" rx="1.5" fill="${meta.color}" />
+      <text class="node-ref" x="${textX}" y="${y + 19}">${escapeHtml(shortRef(pr))}</text>
+      <circle cx="${textX + 3}" cy="${y + 33}" r="3.5" fill="${meta.color}" />
+      <text class="node-meta" x="${textX + 12}" y="${y + 36}">${escapeHtml(meta.label)}</text>
+      <text class="node-meta" x="${textX}" y="${y + 52}">${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions} · ${pr.changedFiles}f</text>
+      ${nodeBadge(x + NODE_W - 14, y + 14, order)}
+      ${pr.isSpecPR ? `<text class="node-tag" x="${textX}" y="${y - 6}">SPEC</text>` : ""}
+    </g>`;
+}
+
+function rowStartX(count, avail) {
+  const rowW = count * NODE_W + (count - 1) * GAP_X;
+  return Math.max(2, Math.round((avail - rowW) / 2));
+}
+
+function wideDiagram(set, avail) {
+  const specs = set.members.filter((m) => m.isSpecPR);
+  const consumers = set.members.filter((m) => !m.isSpecPR);
+  const orderOf = (pr) => (set.mergeOrderKnown ? String(set.members.indexOf(pr) + 1) : "?");
+
+  const parts = [];
+  const stems = [];
+  const centers = [];
+
+  if (specs.length > 0) {
+    // Two tiers: specs feed the bus, consumers hang off it.
+    const specY = 12;
+    const busY = specY + NODE_H + GAP_Y / 2;
+    const consY = busY + GAP_Y / 2;
+
+    let x = rowStartX(specs.length, avail);
+    for (const pr of specs) {
+      parts.push(wideNode(pr, x, specY, orderOf(pr)));
+      const cx = x + NODE_W / 2;
+      centers.push(cx);
+      stems.push(`<line x1="${cx}" y1="${specY + NODE_H}" x2="${cx}" y2="${busY}" class="bus" />`);
+      stems.push(`<circle cx="${cx}" cy="${busY}" r="3" class="bus-dot" />`);
+      x += NODE_W + GAP_X;
+    }
+
+    x = rowStartX(consumers.length, avail);
+    for (const pr of consumers) {
+      parts.push(wideNode(pr, x, consY, orderOf(pr)));
+      const cx = x + NODE_W / 2;
+      centers.push(cx);
+      stems.push(`<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${consY}" class="bus" />`);
+      x += NODE_W + GAP_X;
+    }
+
+    const bus = `<line x1="${Math.min(...centers)}" y1="${busY}" x2="${Math.max(...centers)}" y2="${busY}" class="bus" stroke-width="2" />`;
+    return { svg: bus + stems.join("") + parts.join(""), height: consY + NODE_H + 6 };
+  }
+
+  // No spec member: one row, and the bus above it is dashed — these ship together but
+  // nothing in the data says which goes first (FR-4.15).
+  const busY = 14;
+  const rowY = busY + GAP_Y / 2;
+  let x = rowStartX(set.members.length, avail);
+  for (const pr of set.members) {
+    parts.push(wideNode(pr, x, rowY, "?"));
+    const cx = x + NODE_W / 2;
+    centers.push(cx);
+    stems.push(`<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${rowY}" class="bus-dashed" />`);
+    x += NODE_W + GAP_X;
+  }
+  const bus = `<line x1="${Math.min(...centers)}" y1="${busY}" x2="${Math.max(...centers)}" y2="${busY}" class="bus-dashed" stroke-width="2" />`;
+  return { svg: bus + stems.join("") + parts.join(""), height: rowY + NODE_H + 6 };
+}
+
+function verticalNode(pr, y, avail, order) {
+  const meta = statusMeta(pr.status);
+  const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
+  const w = avail - V_NODE_X - 2;
+  return `
+    <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
+      <rect class="node-box" x="${V_NODE_X}" y="${y}" width="${w}" height="${V_NODE_H}" rx="6"${dash} />
+      <rect class="node-rail" x="${V_NODE_X}" y="${y}" width="3" height="${V_NODE_H}" rx="1.5" fill="${meta.color}" />
+      <text class="node-ref" x="${V_NODE_X + 12}" y="${y + 14}">${escapeHtml(shortRef(pr))}</text>
+      <text class="node-meta" x="${V_NODE_X + 12}" y="${y + 27}">${escapeHtml(meta.label)} · ${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions}</text>
+      <line x1="${V_BUS_X}" y1="${y + V_NODE_H / 2}" x2="${V_NODE_X}" y2="${y + V_NODE_H / 2}" class="bus" />
+      ${nodeBadge(V_BUS_X, y + V_NODE_H / 2, order)}
+    </g>`;
+}
+
+function verticalDiagram(set, avail) {
+  const specs = set.members.filter((m) => m.isSpecPR);
+  const consumers = set.members.filter((m) => !m.isSpecPR);
+  const ordered = [...specs, ...consumers];
+
+  let y = 6;
+  const nodes = ordered.map((pr, i) => {
+    const node = verticalNode(pr, y, avail, set.mergeOrderKnown ? String(i + 1) : "?");
+    y += V_NODE_H + V_GAP;
+    return node;
+  });
+  const height = y - V_GAP + 6;
+  const busClass = set.mergeOrderKnown ? "bus" : "bus-dashed";
+  const bus = `<line x1="${V_BUS_X}" y1="${6 + V_NODE_H / 2}" x2="${V_BUS_X}" y2="${height - 6 - V_NODE_H / 2}" class="${busClass}" stroke-width="2" />`;
+  return { svg: bus + nodes.join(""), height };
+}
+
+function setDiagram(set, avail) {
+  const specs = set.members.filter((m) => m.isSpecPR);
+  const consumers = set.members.filter((m) => !m.isSpecPR);
+  const perRow = Math.max(1, Math.floor((avail + GAP_X) / (NODE_W + GAP_X)));
+  const fitsWide = avail >= 480 && specs.length <= perRow && consumers.length <= perRow && set.members.length <= perRow * 2;
+
+  const { svg, height } = fitsWide ? wideDiagram(set, avail) : verticalDiagram(set, avail);
+
+  const caption = set.mergeOrderKnown
+    ? `${plural(specs.length, "spec PR", "spec PRs")} → ${plural(consumers.length, "consumer", "consumers")} · merge in the numbered order`
+    : "no spec PR in this set — nothing says which goes first";
+
+  return html`<div class="diagram">
+    <div class="diagram-head">
+      <span class="diagram-label">${set.label}</span>
+      <span class="diagram-count">${plural(set.members.length, "PR", "PRs")}</span>
+      <span class="set-spacer"></span>
+      ${raw(set.hasManualLink ? html`<span class="chip chip-linked">has manual link</span>` : "")}
+      ${raw(statusChip(set.status))}
+    </div>
+    <div class="diagram-caption">${caption}</div>
+    <svg viewBox="0 0 ${avail} ${height}" width="${avail}" height="${height}" role="img" aria-label="Change set ${set.label}">
+      ${raw(svg)}
+    </svg>
+  </div>`;
 }
 
 function renderConnections(sets) {
   const multi = sets.filter((s) => s.members.length > 1);
   const solo = sets.filter((s) => s.members.length === 1).length;
+  const soloNote = solo > 0
+    ? html`<div class="solo-note">${plural(solo, "PR ships", "PRs ship")} on ${raw(solo === 1 ? "its" : "their")} own, connected to nothing.</div>`
+    : "";
 
   if (multi.length === 0) {
-    els.connections.innerHTML = solo > 0 ? html`<div class="solo-count">${solo} PR${raw(solo === 1 ? "" : "s")} connected to nothing.</div>` : "";
+    els.connections.innerHTML = html`<section class="panel">
+      <div class="panel-head has-rule"><h2 class="panel-title">Connections</h2></div>
+      <div class="empty">No multi-repo change sets right now — nothing has to merge in a particular order.</div>
+      ${raw(soloNote)}
+    </section>`;
     return;
   }
 
-  const diagrams = multi
-    .map((set) => {
-      const specs = set.members.filter((m) => m.isSpecPR);
-      const consumers = set.members.filter((m) => !m.isSpecPR);
-      const width = Math.max(specs.length, consumers.length, 1) * 170 + 20;
-      const busY = 70;
-      const nodes = [
-        ...specs.map((m, i) => prNodeSvg(m, 10 + i * 170, 10)),
-        ...consumers.map((m, i) => prNodeSvg(m, 10 + i * 170, 100)),
-      ].join("");
-      const stems = [
-        ...specs.map((_, i) => `<line x1="${85 + i * 170}" y1="56" x2="${85 + i * 170}" y2="${busY}" stroke="var(--border)" />`),
-        ...consumers.map((_, i) => `<line x1="${85 + i * 170}" y1="${busY}" x2="${85 + i * 170}" y2="100" stroke="var(--border)" />`),
-      ].join("");
-      const bus = specs.length && consumers.length ? `<line x1="10" y1="${busY}" x2="${width - 10}" y2="${busY}" stroke="var(--border)" stroke-width="2" />` : "";
-      const orderNote = set.mergeOrderKnown ? "" : ` <span class="meta">(merge order unknown — no spec PR found)</span>`;
-      return html`<div class="set-diagram">
-        <div class="set-diagram-title">${set.label}${raw(orderNote)}</div>
-        <svg width="${width}" height="150" viewBox="0 0 ${width} 150">${raw(bus + stems + nodes)}</svg>
-      </div>`;
-    })
-    .join("");
+  // Lay out against the real width so the diagram renders 1:1 instead of being scaled down.
+  const avail = Math.max(300, Math.round((els.connections.clientWidth || 1200) - 34));
 
-  els.connections.innerHTML = html`<h2 class="section-title">Connections</h2>${raw(diagrams)}${raw(
-    solo > 0 ? `<div class="solo-count">${solo} PR${solo === 1 ? "" : "s"} connected to nothing.</div>` : "",
-  )}`;
+  els.connections.innerHTML = html`<section class="panel">
+    <div class="panel-head has-rule">
+      <h2 class="panel-title">Connections</h2>
+      <span class="panel-count">${plural(multi.length, "change set", "change sets")}</span>
+      <span class="set-spacer"></span>
+      <span class="panel-hint">PRs that ship together. Merge down the bus, never across it.</span>
+    </div>
+    ${raw(multi.map((s) => setDiagram(s, avail)).join(""))}
+    ${raw(soloNote)}
+  </section>`;
 }
 
-els.connections.addEventListener("click", (e) => {
-  const node = e.target.closest("[data-pr-key]");
-  if (node) openDrawer(node.dataset.prKey);
-});
+// --- click + keyboard routing into the drawer ---
 
-// --- overview buckets ---
-// FR names exactly six buckets. A set whose owner is 'author' (blocked on someone other than
-// the viewer or "reviewers" generically — e.g. a PR you're reviewing that currently has merge
-// conflicts) has no home among those six; it stays reachable via the tabs/connections/drawer
-// instead of being force-fit into a bucket the spec didn't name.
-const BUCKETS = [
-  { key: "bot", title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", match: (s) => s.members.every((m) => m.authorIsBot) },
-  { key: "ready", title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", match: (s) => s.status === "READY_TO_MERGE" },
-  { key: "draft", title: "Drafts", desc: "Not ready for review yet.", match: (s) => s.status === "DRAFT" },
-  { key: "rotting", title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", match: (s) => s.status === "STALE" },
-  { key: "you", title: "Waiting on you", desc: "The next move is yours.", match: (s) => s.owner === "you" },
-  { key: "reviewers", title: "Waiting on reviewers", desc: "Sitting with someone else for now.", match: (s) => s.owner === "reviewers" },
-];
-
-function bucketFor(set) {
-  return BUCKETS.find((b) => b.match(set)) ?? null;
+for (const el of [els.buckets, els.changes, els.connections]) {
+  el.addEventListener("click", (e) => {
+    const node = e.target.closest("[data-pr-key]");
+    if (node) openDrawer(node.dataset.prKey);
+  });
 }
-
-function memberRow(pr, indented) {
-  const meta = statusMeta(pr.status);
-  const note = appState.notes[pr.key];
-  return html`<div class="pr-row ${raw(indented ? "indented" : "")}" data-pr-key="${pr.key}">
-    <span class="status-dot" style="background:${raw(meta.color)}"></span>
-    <span class="pr-repo">${pr.repo}#${pr.number}</span>
-    <span class="pr-title">${pr.title}</span>
-    ${raw(pr.manuallyLinked ? `<span class="linked-flag">linked</span>` : "")}
-    ${raw(note ? `<span class="pr-note-flag" title="${escapeHtml(note.text)}">note</span>` : "")}
-    <span class="pr-size">+${pr.additions}/-${pr.deletions}</span>
-    <span class="status-label" style="color:${raw(meta.color)}">${meta.label}</span>
-  </div>`;
-}
-
-function setRows(set) {
-  if (set.members.length === 1) return memberRow(set.members[0], false);
-  const meta = statusMeta(set.status);
-  return html`<div class="set-header">
-      <span class="status-dot" style="background:${raw(meta.color)}"></span>
-      ${set.label} <span class="status-label" style="color:${raw(meta.color)}">${meta.label}</span>
-      ${raw(!set.mergeOrderKnown ? `<span class="meta"> · merge order unknown</span>` : "")}
-    </div>${raw(set.members.map((m) => memberRow(m, true)).join(""))}`;
-}
-
-function renderBuckets(sets) {
-  const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
-  for (const set of sets) {
-    const bucket = bucketFor(set);
-    if (bucket) grouped.get(bucket.key).push(set);
-  }
-  const sections = BUCKETS.filter((b) => grouped.get(b.key).length > 0)
-    .map(
-      (b) => html`<div class="bucket">
-        <h3 class="bucket-title">${b.title}</h3>
-        <p class="bucket-desc">${b.desc}</p>
-        ${raw(grouped.get(b.key).map(setRows).join(""))}
-      </div>`,
-    )
-    .join("");
-  els.buckets.innerHTML = sections || `<p class="empty-note">Nothing open in this view.</p>`;
-}
-
-els.buckets.addEventListener("click", (e) => {
-  const row = e.target.closest("[data-pr-key]");
-  if (row) openDrawer(row.dataset.prKey);
-});
-els.changes.addEventListener("click", (e) => {
-  // links inside change rows open GitHub directly; nothing else to wire here.
-});
 
 // --- detail drawer ---
 
@@ -357,25 +697,33 @@ function findPr(prKey) {
   return appState?.prs.find((p) => p.key === prKey) ?? null;
 }
 
+let lastFocused = null;
+
 function openDrawer(prKey) {
+  if (!findPr(prKey)) return;
+  lastFocused = document.activeElement;
   drawerPrKey = prKey;
   renderDrawer();
+  els.drawer.focus();
 }
 
 function closeDrawer() {
   drawerPrKey = null;
   els.drawer.classList.add("hidden");
   els.scrim.classList.add("hidden");
+  if (lastFocused?.isConnected) lastFocused.focus();
+  lastFocused = null;
 }
 
 els.scrim.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeDrawer();
+  if (e.key === "Escape" && drawerPrKey) closeDrawer();
 });
 
 let noteSaveTimer = null;
-function scheduleNoteSave(prKey, text) {
+function scheduleNoteSave(prKey, text, hintEl) {
   clearTimeout(noteSaveTimer);
+  if (hintEl) hintEl.textContent = "Saving…";
   noteSaveTimer = setTimeout(async () => {
     const res = await fetch(`/api/notes/${encodeURIComponent(prKey)}`, {
       method: "POST",
@@ -383,12 +731,13 @@ function scheduleNoteSave(prKey, text) {
       body: JSON.stringify({ text }),
     });
     appState = await res.json();
+    if (hintEl) hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
     // Skip the drawer so the textarea the user is typing into keeps its focus/cursor.
     render({ skipDrawer: true });
   }, 800);
 }
 
-async function handleLinkChange(prKey, value, branchSetKey) {
+async function handleLinkChange(prKey, value) {
   if (value === "__branch__") {
     await fetch(`/api/links/${encodeURIComponent(prKey)}`, { method: "DELETE" });
   } else {
@@ -400,6 +749,9 @@ async function handleLinkChange(prKey, value, branchSetKey) {
   }
   await fetchState();
 }
+
+const CHECK_OK = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+const OWNER_LABEL = { you: "You", author: "The author", reviewers: "Reviewers" };
 
 function renderDrawer() {
   if (!drawerPrKey) return;
@@ -415,70 +767,124 @@ function renderDrawer() {
 
   const linkOptions = appState.sets
     .filter((s) => s.key !== pr.branchSetKey)
-    .map((s) => html`<option value="${s.key}" ${raw(pr.setKey === s.key ? "selected" : "")}>${s.label} (${s.key})</option>`)
+    .map((s) => html`<option value="${s.key}" ${raw(pr.setKey === s.key ? "selected" : "")}>${s.label} — ${s.key}</option>`)
     .join("");
 
   const checksHtml = pr.checks.length
-    ? pr.checks.map((c) => html`<div class="check-row"><span>${c.name}</span><span>${c.state}</span></div>`).join("")
-    : `<p class="empty-note">No CI checks.</p>`;
+    ? pr.checks
+        .map((c) => {
+          const ok = CHECK_OK.has(c.state.toUpperCase());
+          const failed = c.state.toUpperCase() === "FAILURE";
+          const color = ok ? "var(--sig-good)" : failed ? "var(--sig-bad)" : "var(--ink-muted)";
+          const ic = ok ? "check" : failed ? "xCircle" : "clock";
+          return html`<div class="list-row"><span style="color:${raw(color)};display:flex">${raw(icon(ic))}</span><span class="name">${c.name}</span><span class="state">${c.state}</span></div>`;
+        })
+        .join("")
+    : html`<div class="empty">No CI checks on this PR.</div>`;
 
   const reviewsHtml = pr.reviews.length
-    ? pr.reviews.map((r) => html`<div class="review-row"><span>${r.author}</span><span>${r.state}</span></div>`).join("")
-    : `<p class="empty-note">No reviews yet.</p>`;
+    ? pr.reviews
+        .map((r) => {
+          const approved = r.state === "APPROVED";
+          const changes = r.state === "CHANGES_REQUESTED";
+          const color = approved ? "var(--sig-good)" : changes ? "var(--sig-warn)" : "var(--ink-muted)";
+          const ic = approved ? "check" : changes ? "cornerUpLeft" : "note";
+          const stale = approved && r.commitSha && r.commitSha !== pr.headCommitSha;
+          return html`<div class="list-row"><span style="color:${raw(color)};display:flex">${raw(icon(ic))}</span><span class="name">${r.author}</span><span class="state">${raw(stale ? "approved an older commit" : escapeHtml(r.state.toLowerCase().replace(/_/g, " ")))}</span></div>`;
+        })
+        .join("")
+    : html`<div class="empty">No reviews yet.</div>`;
 
-  const membersHtml = set
+  const membersHtml = set && set.members.length > 1
     ? set.members
-        .map(
-          (m) => html`<div class="member-row" data-pr-key="${m.key}">${raw(m.key === pr.key ? "<strong>" : "")}${m.repo}#${m.number} — ${statusMeta(m.status).label}${raw(m.key === pr.key ? "</strong>" : "")}</div>`,
-        )
+        .map((m, i) => {
+          const mm = statusMeta(m.status);
+          return html`<button type="button" class="member-row ${raw(m.key === pr.key ? "is-current" : "")}" data-member-key="${m.key}">
+            <span class="step">${raw(set.mergeOrderKnown ? String(i + 1) : "?")}</span>
+            <span style="color:${raw(mm.color)};display:flex">${raw(icon(mm.icon))}</span>
+            <span class="name">${raw(escapeHtml(shortRef(m)))}</span>
+            <span class="state chip chip-meta">${mm.label}</span>
+          </button>`;
+        })
         .join("")
     : "";
 
   els.drawer.innerHTML = html`
-    <button class="drawer-close" id="drawer-close-btn" aria-label="Close">✕</button>
-    <span class="status-dot" style="background:${raw(meta.color)}"></span>
-    <span class="status-label" style="color:${raw(meta.color)}">${meta.label}</span>
-    <h2>${pr.title}</h2>
-    <a href="${pr.url}" target="_blank" rel="noopener">${pr.repo}#${pr.number} on GitHub ↗</a>
+    <div class="drawer-head">
+      <div class="drawer-top">
+        <span style="color:${raw(meta.color)};display:flex">${raw(icon(meta.icon))}</span>
+        ${raw(statusChip(pr.status))}
+        ${raw(pr.authorIsBot ? html`<span class="chip chip-bot">bot</span>` : "")}
+        ${raw(pr.manuallyLinked ? html`<span class="chip chip-linked">linked</span>` : "")}
+        <button class="drawer-close" id="drawer-close-btn" aria-label="Close">${raw(icon("x"))}</button>
+      </div>
+      <h2 class="drawer-title">${pr.title}</h2>
+      <a class="drawer-link" href="${pr.url}" target="_blank" rel="noopener">${raw(escapeHtml(pr.repo))}#${pr.number} on GitHub ${raw(icon("externalLink"))}</a>
+    </div>
 
-    <div class="drawer-section-title">Change set link</div>
-    <select id="link-select">
-      <option value="__branch__" ${raw(!pr.manuallyLinked ? "selected" : "")}>Use branch grouping (${pr.branchSetKey})</option>
-      ${raw(linkOptions)}
-    </select>
+    <div class="drawer-body">
+      <div class="field">
+        <label class="field-label" for="note-input">Note</label>
+        <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${raw(escapeHtml(note?.text ?? ""))}</textarea>
+        <div class="field-hint" id="note-hint">${raw(note ? `Saved ${escapeHtml(timeAgo(note.savedAt))}.` : "Saves automatically. Clearing the text deletes the note.")}</div>
+      </div>
 
-    <div class="drawer-section-title">Note</div>
-    <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${raw(escapeHtml(note?.text ?? ""))}</textarea>
+      <div class="field">
+        <label class="field-label" for="link-select">Change set</label>
+        <select id="link-select">
+          <option value="__branch__" ${raw(!pr.manuallyLinked ? "selected" : "")}>By branch name — ${pr.branchSetKey}</option>
+          ${raw(linkOptions)}
+        </select>
+        <div class="field-hint">${raw(pr.manuallyLinked ? "Manually linked. Switch back to the branch name to unlink." : "Grouped by head branch name. Pick another set to link it by hand.")}</div>
+      </div>
 
-    <dl>
-      <dt>Owner</dt><dd>${pr.owner}</dd>
-      <dt>Author</dt><dd>${pr.author}${raw(pr.authorIsBot ? " (bot)" : "")}</dd>
-      <dt>Branch</dt><dd>${pr.headRefName} → ${pr.baseRefName}</dd>
-      <dt>Size</dt><dd>+${pr.additions}/-${pr.deletions}, ${pr.changedFiles} files</dd>
-      <dt>Opened</dt><dd>${timeAgo(pr.createdAt)}</dd>
-      <dt>Last activity</dt><dd>${timeAgo(pr.lastActivityAt)}</dd>
-      <dt>Mergeable</dt><dd>${pr.mergeableState}</dd>
-      <dt>Breaking?</dt><dd>${pr.breakingDeclaration}</dd>
-    </dl>
+      <div class="field">
+        <span class="field-label">State</span>
+        <dl class="facts">
+          <dt>Next move</dt><dd>${raw(OWNER_LABEL[pr.owner] ?? escapeHtml(pr.owner))}</dd>
+          <dt>Author</dt><dd>${pr.author}</dd>
+          <dt>Branch</dt><dd>${pr.headRefName} → ${pr.baseRefName}</dd>
+          <dt>Size</dt><dd class="mono">+${pr.additions} / −${pr.deletions} · ${plural(pr.changedFiles, "file", "files")}</dd>
+          <dt>Opened</dt><dd>${timeAgo(pr.createdAt)}</dd>
+          <dt>Last activity</dt><dd>${timeAgo(pr.lastActivityAt)}</dd>
+          <dt>Mergeable</dt><dd>${raw(escapeHtml(pr.mergeableState.toLowerCase()))}</dd>
+          <dt>Spec PR</dt><dd>${raw(pr.isSpecPR ? "yes" : "no")}</dd>
+        </dl>
+      </div>
 
-    <div class="drawer-section-title">CI checks</div>
-    ${raw(checksHtml)}
+      <div class="field">
+        <span class="field-label">CI checks</span>
+        ${raw(checksHtml)}
+      </div>
 
-    <div class="drawer-section-title">Reviews</div>
-    ${raw(reviewsHtml)}
+      <div class="field">
+        <span class="field-label">Reviews</span>
+        ${raw(reviewsHtml)}
+      </div>
 
-    ${raw(set && set.members.length > 1 ? `<div class="drawer-section-title">Change set — ${escapeHtml(set.label)} (merge order)</div>${membersHtml}` : "")}
-  `;
+      ${raw(membersHtml ? html`<div class="field">
+        <span class="field-label">Change set — ${set.label}${raw(set.mergeOrderKnown ? " (merge order)" : " (order unknown)")}</span>
+        ${raw(membersHtml)}
+      </div>` : "")}
+    </div>`;
 
+  const hint = document.getElementById("note-hint");
   document.getElementById("drawer-close-btn").addEventListener("click", closeDrawer);
-  document.getElementById("note-input").addEventListener("input", (e) => scheduleNoteSave(pr.key, e.target.value));
-  document.getElementById("link-select").addEventListener("change", (e) => handleLinkChange(pr.key, e.target.value, pr.branchSetKey));
-  els.drawer.querySelectorAll(".member-row[data-pr-key]").forEach((row) => {
-    row.addEventListener("click", () => openDrawer(row.dataset.prKey));
+  document.getElementById("note-input").addEventListener("input", (e) => scheduleNoteSave(pr.key, e.target.value, hint));
+  document.getElementById("link-select").addEventListener("change", (e) => handleLinkChange(pr.key, e.target.value));
+  els.drawer.querySelectorAll("[data-member-key]").forEach((row) => {
+    row.addEventListener("click", () => openDrawer(row.dataset.memberKey));
   });
 }
 
 // --- boot ---
+
+// The connections diagram is laid out against a measured width, so a resize has to re-lay it.
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => render({ skipDrawer: drawerPrKey != null }), 150);
+});
 
 fetchState();
 setInterval(() => fetchState({ skipDrawer: drawerPrKey != null }), POLL_MS);
