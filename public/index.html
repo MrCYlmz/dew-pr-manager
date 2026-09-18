@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pull Request Manager</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-left">
+    <h1>Pull Request Manager</h1>
+    <div id="scan-meta" class="scan-meta">Loading…</div>
+  </div>
+  <button id="refresh-btn" type="button" class="btn">Refresh</button>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-view="overview" class="tab-btn">Overview <span class="count" id="count-overview"></span></button>
+  <button data-view="mine" class="tab-btn">My PRs <span class="count" id="count-mine"></span></button>
+  <button data-view="review" class="tab-btn">To review <span class="count" id="count-review"></span></button>
+</nav>
+
+<main id="main">
+  <section id="stat-tiles" class="stat-tiles" aria-label="Stats"></section>
+  <section id="alerts-section" class="alerts-section" aria-label="Contract alerts"></section>
+  <section id="changes-section" class="changes-section" aria-label="Changes"></section>
+  <section id="connections-section" class="connections-section" aria-label="Connections"></section>
+  <section id="buckets-section" class="buckets-section" aria-label="PR buckets"></section>
+</main>
+
+<div id="drawer-scrim" class="drawer-scrim hidden"></div>
+<aside id="drawer" class="drawer hidden" aria-label="PR detail"></aside>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
