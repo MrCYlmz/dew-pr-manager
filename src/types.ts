@@ -25,6 +25,11 @@ export interface Review {
   commitSha: string;
 }
 
+export interface CheckItem {
+  name: string;
+  state: string;
+}
+
 /** Facts collected straight from GitHub for one PR (FR-1.3). Nothing derived. */
 export interface PullRequestFacts {
   key: string; // "owner/repo#123"
@@ -45,6 +50,7 @@ export interface PullRequestFacts {
   requestedReviewers: string[]; // logins
   headCommitSha: string;
   checkRollupState: CheckRollupState;
+  checks: CheckItem[];
   additions: number;
   deletions: number;
   changedFiles: number;

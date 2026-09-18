@@ -21,6 +21,7 @@ export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullReques
     requestedReviewers: [],
     headCommitSha: "sha-head",
     checkRollupState: "SUCCESS",
+    checks: [],
     additions: 10,
     deletions: 2,
     changedFiles: 1,
