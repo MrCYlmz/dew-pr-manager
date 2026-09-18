@@ -35,7 +35,7 @@ export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullReques
   };
 }
 
-/** A DerivedPullRequest with sane defaults, for change-set/alert/history tests. */
+/** A DerivedPullRequest with sane defaults, for change-set/history tests. */
 export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): DerivedPullRequest {
   const facts = makeFacts(overrides);
   return {
@@ -44,7 +44,6 @@ export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): Derive
     owner: "reviewers",
     lastActivityAt: facts.createdAt,
     isSpecPR: false,
-    breakingDeclaration: "NOT_BREAKING",
     branchSetKey: facts.headRefName,
     setKey: facts.headRefName,
     manuallyLinked: false,

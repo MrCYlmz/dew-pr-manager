@@ -1,5 +1,5 @@
 import { NOTIFY_ENABLED, PORT } from "./config.ts";
-import type { Alert, HistoryEvent } from "./types.ts";
+import type { HistoryEvent } from "./types.ts";
 
 const DASHBOARD_URL = `http://localhost:${PORT}`;
 
@@ -8,26 +8,18 @@ function psQuote(s: string): string {
 }
 
 /**
- * FR-8.26-27: batch to one call per scan; a new contract alert outranks a status
- * transition, and a transition into READY_TO_MERGE or CONFLICTED outranks the rest.
+ * FR-8.26-27: batch to one call per scan; a transition into READY_TO_MERGE or CONFLICTED
+ * outranks the rest.
  */
-export function buildNotification(
-  events: HistoryEvent[],
-  newAlerts: Alert[],
-): { title: string; body: string } | null {
-  const changeCount = events.length + newAlerts.length;
+export function buildNotification(events: HistoryEvent[]): { title: string; body: string } | null {
+  const changeCount = events.length;
   if (changeCount === 0) return null;
 
-  let headline: string;
-  if (newAlerts.length > 0) {
-    headline = newAlerts[0]!.message;
-  } else {
-    const priority =
-      events.find((e) => e.to === "READY_TO_MERGE") ??
-      events.find((e) => e.to === "CONFLICTED") ??
-      events[0]!;
-    headline = `${priority.prKey}: ${priority.from ?? "new"} → ${priority.to ?? "closed"}`;
-  }
+  const priority =
+    events.find((e) => e.to === "READY_TO_MERGE") ??
+    events.find((e) => e.to === "CONFLICTED") ??
+    events[0]!;
+  const headline = `${priority.prKey}: ${priority.from ?? "new"} → ${priority.to ?? "closed"}`;
 
   const title = changeCount === 1 ? "Pull Request Manager: 1 change" : `Pull Request Manager: ${changeCount} changes`;
   return { title, body: headline };
@@ -73,12 +65,8 @@ async function sendDesktopNotification(title: string, body: string): Promise<voi
 }
 
 /** FR-8.28: suppressed on the server's first scan — there's no previous scan to diff against. */
-export async function notifyIfChanged(
-  events: HistoryEvent[],
-  newAlerts: Alert[],
-  isFirstScan: boolean,
-): Promise<void> {
+export async function notifyIfChanged(events: HistoryEvent[], isFirstScan: boolean): Promise<void> {
   if (!NOTIFY_ENABLED || isFirstScan) return;
-  const summary = buildNotification(events, newAlerts);
+  const summary = buildNotification(events);
   if (summary) await sendDesktopNotification(summary.title, summary.body);
 }

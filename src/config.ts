@@ -18,16 +18,6 @@ export const SPEC_REPO_SUFFIX = "-openapi";
 /** ...or when it changes a file whose name contains one of these (case-insensitive). */
 export const SPEC_FILE_KEYWORDS = ["openapi", "swagger"];
 
-/**
- * FR-5.15: the organisation's breaking-changes checkbox block. The spec leaves the exact
- * format as an open question, so this assumes a heading containing "breaking change"
- * followed (within BREAKING_CHANGE_SCAN_LINES lines) by "- [ ] Yes" / "- [ ] No" checkbox
- * items. Retune the two regexes below, not the parser, if the org's convention differs.
- */
-export const BREAKING_CHANGE_HEADING_RE = /breaking change/i;
-export const BREAKING_CHANGE_CHECKBOX_RE = /^\s*-\s*\[( |x|X)\]\s*(yes|no)\b/i;
-export const BREAKING_CHANGE_SCAN_LINES = 15;
-
 /** Concurrency cap for per-PR detail fetches, so a large queue can't trip rate limits. */
 export const FETCH_CONCURRENCY = 5;
 

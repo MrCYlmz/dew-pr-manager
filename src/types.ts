@@ -16,8 +16,6 @@ export type ReviewDecision = "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED
 
 export type CheckRollupState = "SUCCESS" | "FAILURE" | "PENDING" | "NEUTRAL" | null;
 
-export type BreakingDeclaration = "MISSING" | "UNDECLARED" | "NOT_BREAKING" | "BREAKING";
-
 export interface Review {
   author: string;
   state: string;
@@ -68,7 +66,6 @@ export interface DerivedPullRequest extends PullRequestFacts {
   owner: Owner;
   lastActivityAt: string;
   isSpecPR: boolean;
-  breakingDeclaration: BreakingDeclaration;
   branchSetKey: string; // grouping key from the head branch name
   setKey: string; // branchSetKey, unless a manual link overrides it
   manuallyLinked: boolean;
@@ -82,15 +79,6 @@ export interface ChangeSet {
   owner: Owner;
   mergeOrderKnown: boolean;
   hasManualLink: boolean;
-}
-
-export type AlertKind = "undeclared" | "missing_block" | "breaking_not_ready";
-
-export interface Alert {
-  kind: AlertKind;
-  prKey: string;
-  prUrl: string;
-  message: string;
 }
 
 export type HistoryEventKind = "transition" | "appeared" | "vanished";
@@ -129,7 +117,6 @@ export interface AppState {
   meta: ScanMeta;
   prs: DerivedPullRequest[];
   sets: ChangeSet[];
-  alerts: Alert[];
   history: HistoryEvent[];
   notes: Record<string, Note>;
   links: Record<string, string>; // prKey -> targetSetKey

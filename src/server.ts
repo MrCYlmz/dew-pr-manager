@@ -26,7 +26,6 @@ function currentStatePayload(): AppState & { scanning: boolean } {
     meta: null as unknown as AppState["meta"], // no scan has completed yet; the client treats a null meta as "first run"
     prs: [],
     sets: [],
-    alerts: [],
     history: [],
     notes: {},
     links: {},

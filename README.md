@@ -32,9 +32,9 @@ Exactly three, all optional:
 ## Tunables
 
 Everything the spec calls an organisation convention rather than an end-user preference — the
-7-day staleness threshold, the 5-minute scan interval, the 500-event history cap, the spec-PR
-detection rule (`-openapi` repo suffix / `openapi`|`swagger` in a changed filename), and the
-breaking-change checkbox block detection — lives in one place: `src/config.ts`.
+7-day staleness threshold, the 5-minute scan interval, the 500-event history cap, and the spec-PR
+detection rule (`-openapi` repo suffix / `openapi`|`swagger` in a changed filename) — lives in one
+place: `src/config.ts`.
 
 ## Data
 
@@ -48,7 +48,7 @@ source of truth for PR facts; this directory only holds the three things you add
 ## Tests
 
 ```sh
-bun test        # unit tests for the derivation logic (status, owner, grouping, alerts, history)
+bun test        # unit tests for the derivation logic (status, owner, grouping, history)
 bun run typecheck
 ```
 
