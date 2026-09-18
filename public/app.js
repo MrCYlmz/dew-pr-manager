@@ -73,10 +73,10 @@ const els = {
   tabs: document.getElementById("tabs"),
 };
 
-async function fetchState() {
+async function fetchState({ skipDrawer = false } = {}) {
   const res = await fetch("/api/state");
   appState = await res.json();
-  render();
+  render({ skipDrawer });
 }
 
 async function refresh() {
@@ -85,7 +85,7 @@ async function refresh() {
   try {
     const res = await fetch("/api/refresh", { method: "POST" });
     appState = await res.json();
-    render();
+    render({ skipDrawer: drawerPrKey != null });
   } finally {
     els.refreshBtn.disabled = false;
     els.refreshBtn.textContent = "Refresh";
@@ -134,7 +134,10 @@ function countForView(view) {
 
 // --- render orchestration ---
 
-function render() {
+// FR: "a background refresh must never close or re-render the drawer under the cursor" —
+// skipDrawer lets a passive poll update everything else while leaving an open drawer (and
+// whatever the user is mid-typing into its note field) completely untouched.
+function render({ skipDrawer = false } = {}) {
   renderHeader();
   renderTabs();
   if (!appState) return;
@@ -145,7 +148,7 @@ function render() {
   renderChanges(visibleKeys);
   renderConnections(sets);
   renderBuckets(sets);
-  renderDrawer();
+  if (!skipDrawer) renderDrawer();
 }
 
 function renderHeader() {
@@ -380,16 +383,8 @@ function scheduleNoteSave(prKey, text) {
       body: JSON.stringify({ text }),
     });
     appState = await res.json();
-    // Re-render everything except the drawer's own input, so the textarea keeps focus/cursor.
-    renderHeader();
-    renderTabs();
-    const sets = visibleSets();
-    const visibleKeys = new Set(sets.flatMap((s) => s.members.map((m) => m.key)));
-    renderStatTiles(sets);
-    renderAlerts(visibleKeys);
-    renderChanges(visibleKeys);
-    renderConnections(sets);
-    renderBuckets(sets);
+    // Skip the drawer so the textarea the user is typing into keeps its focus/cursor.
+    render({ skipDrawer: true });
   }, 800);
 }
 
@@ -486,4 +481,4 @@ function renderDrawer() {
 // --- boot ---
 
 fetchState();
-setInterval(fetchState, POLL_MS);
+setInterval(() => fetchState({ skipDrawer: drawerPrKey != null }), POLL_MS);

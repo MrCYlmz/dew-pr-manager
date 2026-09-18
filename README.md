@@ -1,0 +1,57 @@
+# Pull Request Manager
+
+A personal, locally-run dashboard that answers one question each morning: which of your open
+pull requests need you, and which are stuck on someone else. Read-only — it reports state, it
+never reviews code and never merges anything. See `Pull Request Manager — Product Spec.md` for
+the full functional spec (FR-1 through FR-8) this implementation follows.
+
+## Run it
+
+Requires [Bun](https://bun.sh) and an already-authenticated [GitHub CLI](https://cli.github.com)
+(`gh auth status` should show a logged-in account). Nothing else to configure.
+
+```sh
+bun install
+bun run dev     # auto-restarts on change
+# or: bun start
+```
+
+Open `http://localhost:4317`. The page loads immediately and says so while the first scan runs;
+it rescans automatically every five minutes, plus a manual refresh button.
+
+## Environment variables
+
+Exactly three, all optional:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `PR_MANAGER_ACCOUNT` | active `gh` account | Which logged-in GitHub CLI account to scan as, when more than one is signed in. Resolves that account's token via `gh auth token -u <login>` rather than switching the machine's active `gh` account. |
+| `PR_MANAGER_PORT` | `4317` | Which port to serve the dashboard on. |
+| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change (FR-8). |
+
+## Tunables
+
+Everything the spec calls an organisation convention rather than an end-user preference — the
+7-day staleness threshold, the 5-minute scan interval, the 500-event history cap, the spec-PR
+detection rule (`-openapi` repo suffix / `openapi`|`swagger` in a changed filename), and the
+breaking-change checkbox block detection — lives in one place: `src/config.ts`.
+
+## Data
+
+State lives as plain JSON under `data/` (git-ignored, safe to delete): `links.json` (manual
+change-set links), `notes.json` (your per-PR notes), `history.json` (the capped status-transition
+log), and `snapshot.json` (the last successfully derived scan, so a restart or a failed scan
+still has something to show). Nothing about a PR itself is stored here — GitHub is the only
+source of truth for PR facts; this directory only holds the three things you added yourself
+(links, notes) plus a cache.
+
+## Tests
+
+```sh
+bun test        # unit tests for the derivation logic (status, owner, grouping, alerts, history)
+bun run typecheck
+```
+
+The derivation logic (`src/domain/*.ts`) is unit tested. The GitHub client (`src/github.ts`) and
+the server/UI are verified by running the app against a real, authenticated `gh` account — there
+isn't a mocked GitHub API in here to test against instead.
