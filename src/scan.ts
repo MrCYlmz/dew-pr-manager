@@ -30,6 +30,7 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
     setKey: facts.headRefName, // assignSetKeys below applies any manual link on top
     manuallyLinked: false,
     mentions: [], // assignMentions in buildState fills this once the whole scan is known
+    mergeStep: null, // groupIntoChangeSets assigns it once the set's members are known
   };
 }
 

@@ -70,12 +70,13 @@ export interface DerivedPullRequest extends PullRequestFacts {
   setKey: string; // branchSetKey, unless a manual link overrides it
   manuallyLinked: boolean;
   mentions: string[]; // keys of other PRs in this scan that the description refers to
+  mergeStep: 1 | 2 | null; // FR-4.15: 1 = spec PR, 2 = consumer; null when the set has no spec
 }
 
 export interface ChangeSet {
   key: string;
   label: string;
-  members: DerivedPullRequest[]; // already in merge order
+  members: DerivedPullRequest[]; // step 1 members first, then step 2; no order within a step
   status: Status;
   owner: Owner;
   mergeOrderKnown: boolean;

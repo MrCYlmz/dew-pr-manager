@@ -35,20 +35,31 @@ export function assignSetKeys(
   });
 }
 
-function byCreatedAtAsc(a: DerivedPullRequest, b: DerivedPullRequest): number {
-  return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+/** Neutral, stable display order inside a merge step: repo then number. Not a merge claim. */
+function byKey(a: DerivedPullRequest, b: DerivedPullRequest): number {
+  return a.key.localeCompare(b.key, undefined, { numeric: true });
 }
 
-/** FR-4.15: spec PRs merge first (oldest first), then consumers (oldest first). */
+/**
+ * FR-4.15: the only ordering the data supports is spec PRs (step 1) before their consumers
+ * (step 2). Nothing says how PRs inside one step relate — not age, not size, not repo — so
+ * no order is claimed between them. With no spec member there is no step 1 and the order is
+ * reported unknown rather than guessed.
+ */
 function orderMergeOrder(members: DerivedPullRequest[]): {
   ordered: DerivedPullRequest[];
   mergeOrderKnown: boolean;
 } {
-  const specs = members.filter((m) => m.isSpecPR).sort(byCreatedAtAsc);
-  const consumers = members.filter((m) => !m.isSpecPR).sort(byCreatedAtAsc);
+  const specs = members.filter((m) => m.isSpecPR).sort(byKey);
+  const consumers = members.filter((m) => !m.isSpecPR).sort(byKey);
+  const mergeOrderKnown = members.length <= 1 || specs.length > 0;
+  const step = (n: 1 | 2) => (mergeOrderKnown ? n : null);
   return {
-    ordered: [...specs, ...consumers],
-    mergeOrderKnown: members.length <= 1 || specs.length > 0,
+    ordered: [
+      ...specs.map((m) => ({ ...m, mergeStep: step(1) })),
+      ...consumers.map((m) => ({ ...m, mergeStep: step(2) })),
+    ],
+    mergeOrderKnown,
   };
 }
 
@@ -74,7 +85,7 @@ function computeSetOwner(members: DerivedPullRequest[], setStatus: Status) {
   return setter.owner;
 }
 
-/** FR-4.9-10, 4.13-15: group already-keyed PRs into change sets, each in merge order. */
+/** FR-4.9-10, 4.13-15: group already-keyed PRs into change sets, each in merge-step order. */
 export function groupIntoChangeSets(prs: DerivedPullRequest[]): ChangeSet[] {
   const bySetKey = new Map<string, DerivedPullRequest[]>();
   for (const pr of prs) {

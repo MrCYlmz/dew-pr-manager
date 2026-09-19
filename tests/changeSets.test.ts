@@ -60,7 +60,7 @@ describe("groupIntoChangeSets", () => {
     expect(sets[0]!.members).toHaveLength(2);
   });
 
-  test("spec PRs merge first, then consumers, each oldest first", () => {
+  test("spec PRs are step 1, consumers step 2, with no order claimed inside a step", () => {
     const prs = assignSetKeys(
       [
         makeDerived({
@@ -85,12 +85,25 @@ describe("groupIntoChangeSets", () => {
       {},
     );
     const [set] = groupIntoChangeSets(prs);
-    expect(set!.members.map((m) => m.key)).toEqual([
-      "acme/spec#1",
-      "acme/consumer#2",
-      "acme/consumer#1",
-    ]);
     expect(set!.mergeOrderKnown).toBe(true);
+    expect(set!.members.map((m) => [m.key, m.mergeStep])).toEqual([
+      ["acme/spec#1", 1],
+      ["acme/consumer#1", 2],
+      ["acme/consumer#2", 2],
+    ]);
+  });
+
+  test("several spec PRs all share step 1", () => {
+    const prs = assignSetKeys(
+      [
+        makeDerived({ key: "acme/b-openapi#7", headRefName: "feature-1", isSpecPR: true }),
+        makeDerived({ key: "acme/a-openapi#3", headRefName: "feature-1", isSpecPR: true }),
+        makeDerived({ key: "acme/app#9", headRefName: "feature-1", isSpecPR: false }),
+      ],
+      {},
+    );
+    const [set] = groupIntoChangeSets(prs);
+    expect(set!.members.map((m) => m.mergeStep)).toEqual([1, 1, 2]);
   });
 
   test("no spec member means merge order is reported unknown", () => {
@@ -103,6 +116,7 @@ describe("groupIntoChangeSets", () => {
     );
     const [set] = groupIntoChangeSets(prs);
     expect(set!.mergeOrderKnown).toBe(false);
+    expect(set!.members.every((m) => m.mergeStep === null)).toBe(true);
   });
 
   test("ready-to-merge set only when every member is", () => {

@@ -317,7 +317,7 @@ function prRow(pr) {
     note ? html`<span class="chip chip-note" title="${note.text}">${raw(icon("note"))}</span>` : "",
   ].join("");
 
-  return html`<button type="button" class="pr-row" data-pr-key="${pr.key}" title="${pr.title}">
+  return html`<button type="button" class="pr-row" data-pr-key="${pr.key}" data-step="${raw(stepOf(pr))}" title="${pr.title}">
     <span style="color:${raw(meta.color)};display:flex">${raw(icon(meta.icon, "st-icon"))}</span>
     <span class="pr-line">
       <span class="pr-ref">${raw(escapeHtml(shortRef(pr)))}</span>
@@ -335,7 +335,7 @@ function prRow(pr) {
 function setCard(set) {
   const meta = statusMeta(set.status);
   const orderNote = set.mergeOrderKnown
-    ? html`${raw(icon("zap"))}Merge in this order — spec first, then consumers.`
+    ? html`${raw(icon("zap"))}Merge the spec PR${raw(set.members.filter((m) => m.isSpecPR).length > 1 ? "s" : "")} first (step 1), then the consumers (step 2) in any order.`
     : html`${raw(icon("alertCircle"))}Merge order unknown — no spec PR in this set, so nothing says which goes first.`;
 
   return html`<div class="set">
@@ -480,6 +480,11 @@ const V_GAP = 9;
 const V_BUS_X = 14;
 const V_NODE_X = 30;
 
+// FR-4.15: the badge is the merge STEP, not a position — every spec PR is 1, every consumer 2.
+function stepOf(pr) {
+  return pr.mergeStep == null ? "?" : String(pr.mergeStep);
+}
+
 function nodeBadge(x, y, text) {
   return `<g class="node-badge">
       <circle cx="${x}" cy="${y}" r="9" />
@@ -513,7 +518,6 @@ function rowStartX(count, avail) {
 function wideDiagram(set, avail) {
   const specs = set.members.filter((m) => m.isSpecPR);
   const consumers = set.members.filter((m) => !m.isSpecPR);
-  const orderOf = (pr) => (set.mergeOrderKnown ? String(set.members.indexOf(pr) + 1) : "?");
 
   const parts = [];
   const stems = [];
@@ -527,7 +531,7 @@ function wideDiagram(set, avail) {
 
     let x = rowStartX(specs.length, avail);
     for (const pr of specs) {
-      parts.push(wideNode(pr, x, specY, orderOf(pr)));
+      parts.push(wideNode(pr, x, specY, stepOf(pr)));
       const cx = x + NODE_W / 2;
       centers.push(cx);
       stems.push(`<line x1="${cx}" y1="${specY + NODE_H}" x2="${cx}" y2="${busY}" class="bus" />`);
@@ -537,7 +541,7 @@ function wideDiagram(set, avail) {
 
     x = rowStartX(consumers.length, avail);
     for (const pr of consumers) {
-      parts.push(wideNode(pr, x, consY, orderOf(pr)));
+      parts.push(wideNode(pr, x, consY, stepOf(pr)));
       const cx = x + NODE_W / 2;
       centers.push(cx);
       stems.push(`<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${consY}" class="bus" />`);
@@ -580,13 +584,10 @@ function verticalNode(pr, y, avail, order) {
 }
 
 function verticalDiagram(set, avail) {
-  const specs = set.members.filter((m) => m.isSpecPR);
-  const consumers = set.members.filter((m) => !m.isSpecPR);
-  const ordered = [...specs, ...consumers];
-
+  // Members already come step 1 first, then step 2.
   let y = 6;
-  const nodes = ordered.map((pr, i) => {
-    const node = verticalNode(pr, y, avail, set.mergeOrderKnown ? String(i + 1) : "?");
+  const nodes = set.members.map((pr) => {
+    const node = verticalNode(pr, y, avail, stepOf(pr));
     y += V_NODE_H + V_GAP;
     return node;
   });
@@ -605,7 +606,7 @@ function setDiagram(set, avail) {
   const { svg, height } = fitsWide ? wideDiagram(set, avail) : verticalDiagram(set, avail);
 
   const caption = set.mergeOrderKnown
-    ? `${plural(specs.length, "spec PR", "spec PRs")} → ${plural(consumers.length, "consumer", "consumers")} · merge in the numbered order`
+    ? `step 1: ${plural(specs.length, "spec PR", "spec PRs")} → step 2: ${plural(consumers.length, "consumer", "consumers")} · any order within a step`
     : "no spec PR in this set — nothing says which goes first";
 
   return html`<div class="diagram">
@@ -798,10 +799,10 @@ function renderDrawer() {
 
   const membersHtml = set && set.members.length > 1
     ? set.members
-        .map((m, i) => {
+        .map((m) => {
           const mm = statusMeta(m.status);
           return html`<button type="button" class="member-row ${raw(m.key === pr.key ? "is-current" : "")}" data-member-key="${m.key}">
-            <span class="step">${raw(set.mergeOrderKnown ? String(i + 1) : "?")}</span>
+            <span class="step" title="${raw(m.mergeStep == null ? "order unknown" : `merge step ${m.mergeStep}`)}">${raw(stepOf(m))}</span>
             <span style="color:${raw(mm.color)};display:flex">${raw(icon(mm.icon))}</span>
             <span class="name">${raw(escapeHtml(shortRef(m)))}</span>
             <span class="state chip chip-meta">${mm.label}</span>
@@ -875,7 +876,7 @@ function renderDrawer() {
       </div>
 
       ${raw(membersHtml ? html`<div class="field">
-        <span class="field-label">Change set — ${set.label}${raw(set.mergeOrderKnown ? " (merge order)" : " (order unknown)")}</span>
+        <span class="field-label">Change set — ${set.label}${raw(set.mergeOrderKnown ? " (merge steps)" : " (order unknown)")}</span>
         ${raw(membersHtml)}
       </div>` : "")}
     </div>`;

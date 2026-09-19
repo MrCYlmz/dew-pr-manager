@@ -466,13 +466,13 @@ a:focus-visible {
 .set-meta { font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
 .set-spacer { flex: 1; }
 
-.set-members { padding: 3px 4px 4px; counter-reset: step; }
+.set-members { padding: 3px 4px 4px; }
 
-/* Merge order as an explicit numbered sequence with a connector running through it. */
+/* FR-4.15: the badge is the merge STEP (1 = spec, 2 = consumer), read from data-step, never a
+   running count — consecutive rows can share a step, and nothing orders them within it. */
 .set-members .pr-row { grid-template-columns: 18px 16px minmax(0, 1fr) auto; padding-left: 6px; }
 .set-members .pr-row::before {
-  counter-increment: step;
-  content: counter(step);
+  content: attr(data-step);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
@@ -494,7 +494,6 @@ a:focus-visible {
   width: 1px;
   background: var(--hairline);
 }
-.set-members.order-unknown .pr-row::before { content: "?"; }
 .set-members.order-unknown .pr-row:not(:last-child)::after { background: none; }
 
 .set-note {
