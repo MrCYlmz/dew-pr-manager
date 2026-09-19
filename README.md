@@ -2,8 +2,7 @@
 
 A personal, locally-run dashboard that answers one question each morning: which of your open
 pull requests need you, and which are stuck on someone else. Read-only — it reports state, it
-never reviews code and never merges anything. See `Pull Request Manager — Product Spec.md` for
-the full functional spec (FR-1 through FR-8) this implementation follows.
+never reviews code and never merges anything.
 
 ## Run it
 
@@ -27,12 +26,12 @@ Exactly three, all optional:
 | --- | --- | --- |
 | `PR_MANAGER_ACCOUNT` | active `gh` account | Which logged-in GitHub CLI account to scan as, when more than one is signed in. Resolves that account's token via `gh auth token -u <login>` rather than switching the machine's active `gh` account. |
 | `PR_MANAGER_PORT` | `4317` | Which port to serve the dashboard on. |
-| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change (FR-8). See [Desktop notifications](#desktop-notifications) for what actually works on which platform. |
+| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change. See [Desktop notifications](#desktop-notifications) for what actually works on which platform. |
 
 ## Desktop notifications
 
-One native OS notification per scan, only when something actually changed, and never one per PR
-(FR-8). It is a single shell call to whatever the platform already ships — there is no bundled
+One native OS notification per scan, only when something actually changed, and never one per PR.
+It is a single shell call to whatever the platform already ships — there is no bundled
 notification library. Set `PR_MANAGER_NOTIFY=off` to turn it off entirely.
 
 Platform support is uneven, and only Linux has been verified:
@@ -48,7 +47,7 @@ the Windows path in particular is a best-effort guess, not a verified feature.
 
 ## Tunables
 
-Everything the spec calls an organisation convention rather than an end-user preference — the
+Everything that is an organisation convention rather than an end-user preference — the
 7-day staleness threshold, the 5-minute scan interval, the 500-event history cap, and the spec-PR
 detection rule (`-openapi` repo suffix / `openapi`|`swagger` in a changed filename) — lives in one
 place: `src/config.ts`.
