@@ -114,6 +114,18 @@ export interface ScanMeta {
   durationMs: number;
 }
 
+/**
+ * FR-4.15: the user-editable half of spec-PR detection. The rule's SHAPE is fixed — a repo
+ * name ending in one of the suffixes, or a changed file's name containing one of the words —
+ * only the two switches and the word lists belong to the user. Matching is case-insensitive.
+ */
+export interface SpecRule {
+  useRepoSuffix: boolean;
+  repoSuffixes: string[];
+  useFileKeywords: boolean;
+  fileKeywords: string[];
+}
+
 /** What the server hands the UI: one prepared snapshot, never a live GitHub call. */
 export interface AppState {
   meta: ScanMeta;
@@ -122,4 +134,5 @@ export interface AppState {
   history: HistoryEvent[];
   notes: Record<string, Note>;
   links: Record<string, string>; // prKey -> targetSetKey
+  specRule: SpecRule; // the rule the sets above were built with
 }

@@ -1,13 +1,56 @@
-import { SPEC_FILE_KEYWORDS, SPEC_REPO_SUFFIX } from "../config.ts";
+import { DEFAULT_SPEC_RULE } from "../config.ts";
 import { STATUS_PRECEDENCE } from "./status.ts";
-import type { ChangeSet, DerivedPullRequest, PullRequestFacts, Status } from "../types.ts";
+import type { ChangeSet, DerivedPullRequest, PullRequestFacts, SpecRule, Status } from "../types.ts";
 
-/** FR-4.15: repo name ends in -openapi, or a changed file's name contains openapi/swagger. */
-export function isSpecPR(facts: PullRequestFacts): boolean {
-  if (facts.repoName.endsWith(SPEC_REPO_SUFFIX)) return true;
-  return facts.changedFilePaths.some((path) =>
-    SPEC_FILE_KEYWORDS.some((kw) => path.toLowerCase().includes(kw)),
-  );
+/**
+ * Turns whatever the settings file or the settings form holds into a well-formed rule: words
+ * may arrive as an array or as one comma/newline-separated string; they are trimmed,
+ * lowercased and de-duplicated, empties dropped; anything missing falls back to the default.
+ */
+export function normalizeSpecRule(input: unknown): SpecRule {
+  const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const words = (value: unknown, fallback: string[]): string[] => {
+    if (value === undefined) return fallback;
+    const parts = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[,\n]/) : [];
+    const seen = new Set<string>();
+    for (const part of parts) {
+      if (typeof part !== "string") continue;
+      const w = part.trim().toLowerCase();
+      if (w) seen.add(w);
+    }
+    return [...seen];
+  };
+  const flag = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
+  return {
+    useRepoSuffix: flag(src.useRepoSuffix, DEFAULT_SPEC_RULE.useRepoSuffix),
+    repoSuffixes: words(src.repoSuffixes, DEFAULT_SPEC_RULE.repoSuffixes),
+    useFileKeywords: flag(src.useFileKeywords, DEFAULT_SPEC_RULE.useFileKeywords),
+    fileKeywords: words(src.fileKeywords, DEFAULT_SPEC_RULE.fileKeywords),
+  };
+}
+
+/**
+ * FR-4.15: repo name ends in one of the rule's suffixes, or a changed file's name contains
+ * one of its words — whichever half the user has switched on. With both halves off (or
+ * empty) nothing is a spec PR, and every multi-member set reports its order as unknown.
+ */
+export function isSpecPR(facts: PullRequestFacts, rule: SpecRule = DEFAULT_SPEC_RULE): boolean {
+  if (rule.useRepoSuffix) {
+    const repo = facts.repoName.toLowerCase();
+    if (rule.repoSuffixes.some((suffix) => repo.endsWith(suffix))) return true;
+  }
+  if (rule.useFileKeywords && rule.fileKeywords.length > 0) {
+    return facts.changedFilePaths.some((path) => {
+      const lower = path.toLowerCase();
+      return rule.fileKeywords.some((kw) => lower.includes(kw));
+    });
+  }
+  return false;
+}
+
+/** Re-derive every PR's spec flag under a rule; the facts it reads are already in the snapshot. */
+export function applySpecRule(prs: DerivedPullRequest[], rule: SpecRule): DerivedPullRequest[] {
+  return prs.map((pr) => ({ ...pr, isSpecPR: isSpecPR(pr, rule) }));
 }
 
 /** FR-4.11: the first number in the branch name, falling back to the branch name itself. */

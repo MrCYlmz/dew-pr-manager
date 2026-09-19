@@ -33,6 +33,7 @@ const ICON_PATHS = {
   user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
   users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   alertCircle: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01",
+    sliders: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
 };
 
 function icon(name, cls = "") {
@@ -137,11 +138,14 @@ const els = {
   refreshBtn: document.getElementById("refresh-btn"),
   refreshIcon: document.getElementById("refresh-icon"),
   refreshLabel: document.getElementById("refresh-label"),
+  settings: document.getElementById("settings"),
+  settingsBtn: document.getElementById("settings-btn"),
   tabs: document.getElementById("tabs"),
   shell: document.getElementById("main"),
 };
 
 els.refreshIcon.innerHTML = icon("rotateCw");
+document.getElementById("settings-icon").innerHTML = icon("sliders");
 
 async function fetchState({ skipDrawer = false } = {}) {
   const res = await fetch("/api/state");
@@ -690,9 +694,14 @@ function closeDrawer() {
   lastFocused = null;
 }
 
-els.scrim.addEventListener("click", closeDrawer);
+els.scrim.addEventListener("click", () => {
+  if (settingsOpen) closeSettings();
+  else closeDrawer();
+});
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && drawerPrKey) closeDrawer();
+  if (e.key !== "Escape") return;
+  if (settingsOpen) closeSettings();
+  else if (drawerPrKey) closeDrawer();
 });
 
 let noteSaveTimer = null;
@@ -906,6 +915,134 @@ function renderDrawer() {
     });
   }
 }
+
+// --- spec-PR rule (FR-4.15): the one setting the user owns ---
+//
+// The rule's shape is fixed — repo-name suffix or changed-file keyword — the user only picks
+// which halves are on and which words they match. Saving regroups from the snapshot without a
+// GitHub refetch, exactly like a manual link.
+
+let settingsOpen = false;
+
+/** Client-side mirror of the domain's isSpecPR, only for the live "would mark N PRs" preview. */
+function previewSpecMatch(pr, rule) {
+  if (rule.useRepoSuffix) {
+    const repo = pr.repoName.toLowerCase();
+    if (rule.repoSuffixes.some((sfx) => repo.endsWith(sfx))) return true;
+  }
+  if (rule.useFileKeywords && rule.fileKeywords.length > 0) {
+    return pr.changedFilePaths.some((path) => {
+      const lower = path.toLowerCase();
+      return rule.fileKeywords.some((kw) => lower.includes(kw));
+    });
+  }
+  return false;
+}
+
+function splitWords(text) {
+  return [...new Set(text.split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
+}
+
+function readSettingsForm() {
+  return {
+    useRepoSuffix: document.getElementById("rule-suffix-on").checked,
+    repoSuffixes: splitWords(document.getElementById("rule-suffixes").value),
+    useFileKeywords: document.getElementById("rule-files-on").checked,
+    fileKeywords: splitWords(document.getElementById("rule-keywords").value),
+  };
+}
+
+function updateSettingsPreview() {
+  const rule = readSettingsForm();
+  const preview = document.getElementById("rule-preview");
+  const prs = appState?.prs ?? [];
+  const inactive = (!rule.useRepoSuffix || rule.repoSuffixes.length === 0) && (!rule.useFileKeywords || rule.fileKeywords.length === 0);
+  if (inactive) {
+    preview.innerHTML = html`${raw(icon("alertCircle"))}Nothing matches — no PR will count as a spec PR, so every set's merge order becomes unknown.`;
+    preview.className = "rule-preview is-warning";
+    return;
+  }
+  const n = prs.filter((pr) => previewSpecMatch(pr, rule)).length;
+  preview.textContent = `Would mark ${n} of ${plural(prs.length, "open PR", "open PRs")} as spec PRs.`;
+  preview.className = "rule-preview";
+  document.getElementById("rule-suffixes").disabled = !rule.useRepoSuffix;
+  document.getElementById("rule-keywords").disabled = !rule.useFileKeywords;
+}
+
+function renderSettings() {
+  const rule = appState?.specRule;
+  if (!rule) return;
+  els.settings.innerHTML = html`<div class="drawer-head">
+      <div class="drawer-top">
+        <span class="chip chip-meta">Setting</span>
+        <button type="button" class="drawer-close" id="settings-close-btn" aria-label="Close">${raw(icon("x"))}</button>
+      </div>
+      <h2 class="drawer-title">What counts as a spec PR</h2>
+      <p class="settings-intro">A PR is a spec PR when either rule below matches. Spec PRs are merge step 1; everything else in their set is step 2. Words are comma-separated and case doesn't matter.</p>
+    </div>
+    <div class="drawer-body">
+      <div class="field">
+        <label class="check-row"><input type="checkbox" id="rule-suffix-on" ${raw(rule.useRepoSuffix ? "checked" : "")} /> Repository name ends with</label>
+        <input type="text" id="rule-suffixes" value="${rule.repoSuffixes.join(", ")}" placeholder="-openapi" spellcheck="false" autocomplete="off" />
+        <div class="field-hint">e.g. <code>billing-openapi</code> matches <code>-openapi</code>.</div>
+      </div>
+      <div class="field">
+        <label class="check-row"><input type="checkbox" id="rule-files-on" ${raw(rule.useFileKeywords ? "checked" : "")} /> A changed file's name contains</label>
+        <input type="text" id="rule-keywords" value="${rule.fileKeywords.join(", ")}" placeholder="openapi, swagger" spellcheck="false" autocomplete="off" />
+        <div class="field-hint">Matched against the full path, e.g. <code>docs/swagger.yaml</code> matches <code>swagger</code>.</div>
+      </div>
+      <div id="rule-preview" class="rule-preview"></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="rule-save">Save</button>
+        <button type="button" class="btn" id="rule-reset">Reset to defaults</button>
+        <span class="field-hint" id="rule-hint"></span>
+      </div>
+    </div>`;
+
+  document.getElementById("settings-close-btn").addEventListener("click", closeSettings);
+  for (const id of ["rule-suffix-on", "rule-suffixes", "rule-files-on", "rule-keywords"]) {
+    document.getElementById(id).addEventListener("input", updateSettingsPreview);
+  }
+  document.getElementById("rule-save").addEventListener("click", () => saveSpecRule(readSettingsForm()));
+  document.getElementById("rule-reset").addEventListener("click", () => saveSpecRule(null));
+  updateSettingsPreview();
+}
+
+async function saveSpecRule(rule) {
+  const hint = document.getElementById("rule-hint");
+  hint.textContent = "Saving…";
+  const res = rule === null
+    ? await fetch("/api/settings/spec-rule", { method: "DELETE" })
+    : await fetch("/api/settings/spec-rule", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(rule),
+      });
+  appState = await res.json();
+  render({ skipDrawer: true });
+  renderSettings();
+  document.getElementById("rule-hint").textContent = rule === null ? "Defaults restored." : "Saved — sets regrouped.";
+}
+
+function openSettings() {
+  if (drawerPrKey) closeDrawer();
+  settingsOpen = true;
+  lastFocused = document.activeElement;
+  renderSettings();
+  els.settings.classList.remove("hidden");
+  els.scrim.classList.remove("hidden");
+  els.settings.focus();
+}
+
+function closeSettings() {
+  settingsOpen = false;
+  els.settings.classList.add("hidden");
+  els.scrim.classList.add("hidden");
+  if (lastFocused?.isConnected) lastFocused.focus();
+  lastFocused = null;
+}
+
+els.settingsBtn.addEventListener("click", openSettings);
 
 // --- boot ---
 

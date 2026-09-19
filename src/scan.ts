@@ -1,5 +1,5 @@
 import { collectOpenPullRequests } from "./github.ts";
-import { assignSetKeys, groupIntoChangeSets, isSpecPR } from "./domain/changeSets.ts";
+import { applySpecRule, assignSetKeys, groupIntoChangeSets, normalizeSpecRule } from "./domain/changeSets.ts";
 import { capHistory, diffScans } from "./domain/history.ts";
 import { deriveOwner } from "./domain/owner.ts";
 import { assignMentions } from "./domain/references.ts";
@@ -10,6 +10,7 @@ import {
   readLinks,
   readNotes,
   readSnapshot,
+  readSpecRuleSetting,
   writeHistory,
   writeSnapshot,
 } from "./store.ts";
@@ -25,7 +26,7 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
     status,
     owner: deriveOwner(status, facts, viewerLogin),
     lastActivityAt: computeLastActivityAt(facts),
-    isSpecPR: isSpecPR(facts),
+    isSpecPR: false, // buildState applies the current spec rule, so a rule edit needs no refetch
     branchSetKey: facts.headRefName,
     setKey: facts.headRefName, // assignSetKeys below applies any manual link on top
     manuallyLinked: false,
@@ -36,10 +37,16 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
 
 /** Turns already-fetched PR facts into the full prepared snapshot the UI reads (FR-4). */
 async function buildState(derivedPrs: DerivedPullRequest[], meta: ScanMeta): Promise<AppState> {
-  const [links, notes, history] = await Promise.all([readLinks(), readNotes(), readHistory()]);
-  const prs = assignMentions(assignSetKeys(derivedPrs, links));
+  const [links, notes, history, ruleSetting] = await Promise.all([
+    readLinks(),
+    readNotes(),
+    readHistory(),
+    readSpecRuleSetting(),
+  ]);
+  const specRule = normalizeSpecRule(ruleSetting);
+  const prs = assignMentions(assignSetKeys(applySpecRule(derivedPrs, specRule), links));
   const sets = groupIntoChangeSets(prs);
-  return { meta, prs, sets, history, notes, links };
+  return { meta, prs, sets, history, notes, links, specRule };
 }
 
 async function buildEmptyState(): Promise<AppState> {
@@ -61,7 +68,7 @@ export function isScanning(): boolean {
 
 /**
  * FR-6.20-21: recompute sets and state from the last fetched facts, no GitHub refetch.
- * Used whenever a manual link or note changes, and to serve a snapshot left on disk from a
+ * Used whenever a manual link, note or the spec-PR rule changes, and to serve a snapshot left on disk from a
  * previous run before the first scan of this process has completed.
  */
 export async function regroup(): Promise<AppState | null> {

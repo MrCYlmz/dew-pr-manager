@@ -1,6 +1,8 @@
 import { PORT, SCAN_INTERVAL_MS } from "./config.ts";
 import { getCachedState, isScanning, regroup, runScan } from "./scan.ts";
-import { removeLink, setLink, setNote } from "./store.ts";
+import { normalizeSpecRule } from "./domain/changeSets.ts";
+import { removeLink, setLink, setNote, writeSpecRuleSetting } from "./store.ts";
+import { DEFAULT_SPEC_RULE } from "./config.ts";
 import type { AppState } from "./types.ts";
 
 const PUBLIC_DIR = new URL("../public/", import.meta.url);
@@ -63,6 +65,7 @@ function currentStatePayload(): AppState & { scanning: boolean } {
     history: [],
     notes: {},
     links: {},
+    specRule: DEFAULT_SPEC_RULE,
   };
   return { ...base, scanning: isScanning() };
 }
@@ -126,6 +129,22 @@ const server = Bun.serve({
         return jsonResponse({ error: "a JSON body with a string `text` is required" }, 400);
       }
       await setNote(prKey, body.text);
+      await regroup();
+      return jsonResponse(currentStatePayload());
+    }
+
+    // FR-4.15: the spec-PR rule is the one dashboard-editable tunable. PUT replaces it, DELETE
+    // restores the defaults; both regroup from the snapshot, since the inputs are already there.
+    if (url.pathname === "/api/settings/spec-rule" && (req.method === "PUT" || req.method === "DELETE")) {
+      if (req.method === "PUT") {
+        const body = await readJsonBody<unknown>(req);
+        if (body == null || typeof body !== "object") {
+          return jsonResponse({ error: "a JSON body describing the rule is required" }, 400);
+        }
+        await writeSpecRuleSetting(normalizeSpecRule(body));
+      } else {
+        await writeSpecRuleSetting(null);
+      }
       await regroup();
       return jsonResponse(currentStatePayload());
     }

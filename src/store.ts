@@ -1,13 +1,14 @@
 import { mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { DATA_DIR } from "./config.ts";
-import type { DerivedPullRequest, HistoryEvent, ManualLink, Note, ScanMeta } from "./types.ts";
+import type { DerivedPullRequest, HistoryEvent, ManualLink, Note, ScanMeta, SpecRule } from "./types.ts";
 
 const dataDir = join(process.cwd(), DATA_DIR);
 const linksPath = join(dataDir, "links.json");
 const notesPath = join(dataDir, "notes.json");
 const historyPath = join(dataDir, "history.json");
 const snapshotPath = join(dataDir, "snapshot.json");
+const settingsPath = join(dataDir, "settings.json");
 
 async function ensureDataDir(): Promise<void> {
   await mkdir(dataDir, { recursive: true });
@@ -62,6 +63,25 @@ export async function setNote(prKey: string, text: string): Promise<Record<strin
   }
   await writeJsonAtomic(notesPath, notes);
   return notes;
+}
+
+// --- Settings (FR-4.15): the one dashboard-editable tunable, the spec-PR rule. Absent file or
+// key means "use the defaults from config.ts"; the caller normalizes whatever is here.
+
+interface Settings {
+  specRule?: unknown;
+}
+
+export async function readSpecRuleSetting(): Promise<unknown> {
+  return (await readJson<Settings>(settingsPath, {})).specRule;
+}
+
+/** `null` removes the override so the defaults apply again. */
+export async function writeSpecRuleSetting(rule: SpecRule | null): Promise<void> {
+  const settings = await readJson<Settings>(settingsPath, {});
+  if (rule === null) delete settings.specRule;
+  else settings.specRule = rule;
+  await writeJsonAtomic(settingsPath, settings);
 }
 
 // --- Status history (FR-7.24): capped list of transition events, already capped by the caller. ---

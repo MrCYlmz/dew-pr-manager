@@ -4,7 +4,9 @@ import {
   extractSetLabel,
   groupIntoChangeSets,
   isSpecPR,
+  normalizeSpecRule,
 } from "../src/domain/changeSets.ts";
+import { DEFAULT_SPEC_RULE } from "../src/config.ts";
 import { makeDerived, makeFacts } from "./helpers.ts";
 
 describe("isSpecPR", () => {
@@ -18,6 +20,61 @@ describe("isSpecPR", () => {
 
   test("neither signal present", () => {
     expect(isSpecPR(makeFacts({ repoName: "billing", changedFilePaths: ["src/index.ts"] }))).toBe(false);
+  });
+
+  test("the user's own words replace the defaults", () => {
+    const rule = normalizeSpecRule({ repoSuffixes: ["-contracts"], fileKeywords: ["proto"] });
+    expect(isSpecPR(makeFacts({ repoName: "billing-openapi" }), rule)).toBe(false);
+    expect(isSpecPR(makeFacts({ repoName: "billing-contracts" }), rule)).toBe(true);
+    expect(isSpecPR(makeFacts({ changedFilePaths: ["api/v1/billing.proto"] }), rule)).toBe(true);
+    expect(isSpecPR(makeFacts({ changedFilePaths: ["docs/swagger.yaml"] }), rule)).toBe(false);
+  });
+
+  test("each half can be switched off on its own", () => {
+    const suffixOnly = normalizeSpecRule({ useFileKeywords: false });
+    expect(isSpecPR(makeFacts({ changedFilePaths: ["docs/swagger.yaml"] }), suffixOnly)).toBe(false);
+    expect(isSpecPR(makeFacts({ repoName: "billing-openapi" }), suffixOnly)).toBe(true);
+
+    const filesOnly = normalizeSpecRule({ useRepoSuffix: false });
+    expect(isSpecPR(makeFacts({ repoName: "billing-openapi" }), filesOnly)).toBe(false);
+    expect(isSpecPR(makeFacts({ changedFilePaths: ["docs/swagger.yaml"] }), filesOnly)).toBe(true);
+  });
+
+  test("both halves off means nothing is a spec PR", () => {
+    const off = normalizeSpecRule({ useRepoSuffix: false, useFileKeywords: false });
+    expect(isSpecPR(makeFacts({ repoName: "billing-openapi", changedFilePaths: ["openapi.yaml"] }), off)).toBe(false);
+  });
+
+  test("matching ignores case", () => {
+    const rule = normalizeSpecRule({ repoSuffixes: ["-OpenAPI"] });
+    expect(isSpecPR(makeFacts({ repoName: "Billing-openapi" }), rule)).toBe(true);
+    expect(isSpecPR(makeFacts({ changedFilePaths: ["API/OpenAPI.yaml"] }))).toBe(true);
+  });
+});
+
+describe("normalizeSpecRule", () => {
+  test("nothing stored means the defaults", () => {
+    expect(normalizeSpecRule(undefined)).toEqual(DEFAULT_SPEC_RULE);
+    expect(normalizeSpecRule({})).toEqual(DEFAULT_SPEC_RULE);
+    expect(normalizeSpecRule("garbage")).toEqual(DEFAULT_SPEC_RULE);
+  });
+
+  test("accepts a comma or newline separated string and cleans it", () => {
+    expect(normalizeSpecRule({ fileKeywords: " OpenAPI, swagger\n\n proto ,swagger, " }).fileKeywords).toEqual([
+      "openapi",
+      "swagger",
+      "proto",
+    ]);
+  });
+
+  test("an explicitly empty list stays empty rather than falling back", () => {
+    expect(normalizeSpecRule({ repoSuffixes: "" }).repoSuffixes).toEqual([]);
+    expect(normalizeSpecRule({ repoSuffixes: [] }).repoSuffixes).toEqual([]);
+  });
+
+  test("non-boolean switches fall back to the default", () => {
+    expect(normalizeSpecRule({ useRepoSuffix: "no" }).useRepoSuffix).toBe(true);
+    expect(normalizeSpecRule({ useRepoSuffix: false }).useRepoSuffix).toBe(false);
   });
 });
 

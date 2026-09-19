@@ -15,6 +15,10 @@
       <h1>Pull Request Manager</h1>
     </div>
     <div id="scan-meta" class="scan-meta">Starting up…</div>
+    <button id="settings-btn" type="button" class="btn" aria-haspopup="dialog" aria-controls="settings">
+      <span class="btn-icon" id="settings-icon" aria-hidden="true"></span>
+      Spec rule
+    </button>
     <button id="refresh-btn" type="button" class="btn btn-refresh">
       <span class="btn-icon" id="refresh-icon" aria-hidden="true"></span>
       <span id="refresh-label">Refresh</span>
@@ -46,6 +50,7 @@
 
 <div id="drawer-scrim" class="drawer-scrim hidden"></div>
 <aside id="drawer" class="drawer hidden" aria-label="Pull request detail" tabindex="-1"></aside>
+<aside id="settings" class="drawer hidden" role="dialog" aria-label="Spec-PR rule" tabindex="-1"></aside>
 
 <script type="module" src="/app.js"></script>
 </body>

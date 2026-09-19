@@ -58,18 +58,25 @@ the Windows path in particular is a best-effort guess, not a verified feature.
 ## Tunables
 
 Everything that is an organisation convention rather than an end-user preference — the
-7-day staleness threshold, the 5-minute scan interval, the 500-event history cap, and the spec-PR
-detection rule (`-openapi` repo suffix / `openapi`|`swagger` in a changed filename) — lives in one
+7-day staleness threshold, the 5-minute scan interval, the 500-event history cap — lives in one
 place: `src/config.ts`.
+
+The spec-PR rule is the one thing you edit from the dashboard instead: the **Spec rule** button in
+the header opens a panel with two switches — *repository name ends with* and *a changed file's name
+contains* — each with its own comma-separated words. The defaults (`-openapi`; `openapi`, `swagger`)
+live in `src/config.ts` too and are what *Reset to defaults* restores. Saving regroups the change
+sets immediately without a GitHub refetch; matching ignores case; with both switches off nothing
+counts as a spec PR and every multi-PR set reports its merge order as unknown.
 
 ## Data
 
 State lives as plain JSON under `data/` (git-ignored, safe to delete): `links.json` (manual
-change-set links), `notes.json` (your per-PR notes), `history.json` (the capped status-transition
-log), and `snapshot.json` (the last successfully derived scan, so a restart or a failed scan
-still has something to show). Nothing about a PR itself is stored here — GitHub is the only
-source of truth for PR facts; this directory only holds the three things you added yourself
-(links, notes) plus a cache.
+change-set links), `notes.json` (your per-PR notes), `settings.json` (your spec-PR rule, only
+present once you've changed it), `history.json` (the capped status-transition log), and
+`snapshot.json` (the last successfully derived scan, so a restart or a failed scan still has
+something to show). Nothing about a PR itself is stored here — GitHub is the only source of
+truth for PR facts; this directory only holds the three things you added yourself (links,
+notes, the spec rule) plus a cache.
 
 ## Tests
 
