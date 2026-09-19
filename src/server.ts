@@ -5,6 +5,40 @@ import type { AppState } from "./types.ts";
 
 const PUBLIC_DIR = new URL("../public/", import.meta.url);
 
+/**
+ * Loopback-only guard. Bun.serve binds to localhost, so nothing on the network can reach
+ * this server — but the user's browser can, on behalf of whatever page it happens to be
+ * showing. Two checks close that gap:
+ *
+ * - A request whose Host header is not one of ours is refused (DNS rebinding: a page whose
+ *   hostname re-resolves to 127.0.0.1 would otherwise get a same-origin read of /api/state).
+ * - A mutating request must come from this origin (CSRF: any page could otherwise POST a note
+ *   or force a scan). Browsers always send Origin and/or Sec-Fetch-Site on cross-site
+ *   non-GET requests, so a request carrying neither is a non-browser client (curl) and is let
+ *   through.
+ */
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+const ALLOWED_HOSTS = new Set(LOOPBACK_HOSTS.flatMap((h) => [`${h}:${PORT}`, ...(PORT === 80 ? [h] : [])]));
+
+function isAllowedHost(req: Request): boolean {
+  const host = req.headers.get("host");
+  return host != null && ALLOWED_HOSTS.has(host.toLowerCase());
+}
+
+function isSameOriginRequest(req: Request): boolean {
+  const site = req.headers.get("sec-fetch-site");
+  if (site != null && site !== "same-origin") return false;
+  const origin = req.headers.get("origin");
+  if (origin != null) {
+    try {
+      return ALLOWED_HOSTS.has(new URL(origin).host.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -33,7 +67,12 @@ function currentStatePayload(): AppState & { scanning: boolean } {
   return { ...base, scanning: isScanning() };
 }
 
+/**
+ * Only a declared JSON body is parsed. A cross-site `no-cors` fetch can't set this content
+ * type without a preflight, which is one more reason such a request never gets this far.
+ */
 async function readJsonBody<T>(req: Request): Promise<T | null> {
+  if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return null;
   try {
     return (await req.json()) as T;
   } catch {
@@ -44,6 +83,11 @@ async function readJsonBody<T>(req: Request): Promise<T | null> {
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
+    if (!isAllowedHost(req)) return new Response("Forbidden", { status: 403 });
+    if (req.method !== "GET" && req.method !== "HEAD" && !isSameOriginRequest(req)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
     const url = new URL(req.url);
 
     if (req.method === "GET" && url.pathname === "/api/state") {
@@ -77,8 +121,11 @@ const server = Bun.serve({
     // FR-6.21: free-text note per PR; clearing the text deletes it (handled in store.ts).
     if (req.method === "POST" && url.pathname.startsWith("/api/notes/")) {
       const prKey = decodeURIComponent(url.pathname.slice("/api/notes/".length));
-      const body = await readJsonBody<{ text?: string }>(req);
-      await setNote(prKey, body?.text ?? "");
+      const body = await readJsonBody<{ text?: unknown }>(req);
+      if (body == null || typeof body.text !== "string") {
+        return jsonResponse({ error: "a JSON body with a string `text` is required" }, 400);
+      }
+      await setNote(prKey, body.text);
       await regroup();
       return jsonResponse(currentStatePayload());
     }
