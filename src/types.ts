@@ -69,6 +69,7 @@ export interface DerivedPullRequest extends PullRequestFacts {
   branchSetKey: string; // grouping key from the head branch name
   setKey: string; // branchSetKey, unless a manual link overrides it
   manuallyLinked: boolean;
+  mentions: string[]; // keys of other PRs in this scan that the description refers to
 }
 
 export interface ChangeSet {

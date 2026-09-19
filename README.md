@@ -18,6 +18,16 @@ bun run dev     # auto-restarts on change
 Open `http://localhost:4317`. The page loads immediately and says so while the first scan runs;
 it rescans automatically every five minutes, plus a manual refresh button.
 
+## Descriptions and mentions
+
+The detail drawer shows the PR's description (GitHub's plain-text rendering, collapsed to a few
+lines). Any other open PR the description refers to — `owner/repo#12`, a bare `#12` in the same
+repo, or a pull-request URL — appears under **Mentions**, but only when that PR is in the current
+scan: a description is third-party text, so it can never point the dashboard at anything it
+hasn't already fetched. A mention that sits in a different change set offers **Join its set**,
+which is exactly the manual link you could make from the change-set select — grouping itself
+is still by head branch name only, and nothing is linked automatically.
+
 ## Environment variables
 
 Exactly three, all optional:
@@ -64,7 +74,7 @@ source of truth for PR facts; this directory only holds the three things you add
 ## Tests
 
 ```sh
-bun test        # unit tests for the derivation logic (status, owner, grouping, history)
+bun test        # unit tests for the derivation logic (status, owner, grouping, mentions, history)
 bun run typecheck
 ```
 

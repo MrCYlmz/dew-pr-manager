@@ -47,6 +47,7 @@ export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): Derive
     branchSetKey: facts.headRefName,
     setKey: facts.headRefName,
     manuallyLinked: false,
+    mentions: [],
     ...overrides,
   };
 }

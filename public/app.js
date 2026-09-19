@@ -670,10 +670,12 @@ function findPr(prKey) {
 }
 
 let lastFocused = null;
+let descriptionExpanded = false;
 
 function openDrawer(prKey) {
   if (!findPr(prKey)) return;
   lastFocused = document.activeElement;
+  if (prKey !== drawerPrKey) descriptionExpanded = false;
   drawerPrKey = prKey;
   renderDrawer();
   els.drawer.focus();
@@ -767,6 +769,33 @@ function renderDrawer() {
         .join("")
     : html`<div class="empty">No reviews yet.</div>`;
 
+  // The description is third-party text: it goes through the escaper like everything else,
+  // and the only navigation it can trigger is to PRs the server already resolved.
+  const descriptionHtml = pr.body.trim()
+    ? html`<p class="description ${raw(descriptionExpanded ? "" : "is-clamped")}" id="description-text">${pr.body.trim()}</p>
+      <button type="button" class="link-btn" id="description-toggle" hidden>${raw(descriptionExpanded ? "Show less" : "Show more")}</button>`
+    : html`<div class="empty">No description.</div>`;
+
+  // Mentions are suggestions only: grouping stays by branch name (FR-4.10) unless the user
+  // takes the offered manual link (FR-6), which is the same operation as the select below.
+  const mentionsHtml = pr.mentions
+    .map((key) => findPr(key))
+    .filter((m) => m != null)
+    .map((m) => {
+      const mm = statusMeta(m.status);
+      const sameSet = m.setKey === pr.setKey;
+      const action = sameSet
+        ? html`<span class="state chip chip-meta">same set</span>`
+        : html`<button type="button" class="btn btn-small" data-join-set="${m.setKey}">Join its set</button>`;
+      return html`<div class="mention-row">
+        <span style="color:${raw(mm.color)};display:flex" title="${mm.label}">${raw(icon(mm.icon))}</span>
+        <button type="button" class="mention-ref" data-member-key="${m.key}">${raw(escapeHtml(shortRef(m)))}</button>
+        <span class="mention-title" title="${m.title}">${m.title}</span>
+        ${raw(action)}
+      </div>`;
+    })
+    .join("");
+
   const membersHtml = set && set.members.length > 1
     ? set.members
         .map((m, i) => {
@@ -795,6 +824,17 @@ function renderDrawer() {
     </div>
 
     <div class="drawer-body">
+      <div class="field">
+        <span class="field-label">Description</span>
+        ${raw(descriptionHtml)}
+      </div>
+
+      ${raw(mentionsHtml ? html`<div class="field">
+        <span class="field-label">Mentions</span>
+        <div class="field-hint" style="margin:0 0 4px">PRs this description refers to. Joining one is a manual link, same as picking it below.</div>
+        ${raw(mentionsHtml)}
+      </div>` : "")}
+
       <div class="field">
         <label class="field-label" for="note-input">Note</label>
         <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${raw(escapeHtml(note?.text ?? ""))}</textarea>
@@ -847,6 +887,23 @@ function renderDrawer() {
   els.drawer.querySelectorAll("[data-member-key]").forEach((row) => {
     row.addEventListener("click", () => openDrawer(row.dataset.memberKey));
   });
+  els.drawer.querySelectorAll("[data-join-set]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.joinSet;
+      // Joining the set this PR's own branch already names is just an unlink.
+      handleLinkChange(pr.key, target === pr.branchSetKey ? "__branch__" : target);
+    });
+  });
+
+  const descText = document.getElementById("description-text");
+  const descToggle = document.getElementById("description-toggle");
+  if (descText && descToggle) {
+    if (descriptionExpanded || descText.scrollHeight > descText.clientHeight + 1) descToggle.hidden = false;
+    descToggle.addEventListener("click", () => {
+      descriptionExpanded = !descriptionExpanded;
+      renderDrawer();
+    });
+  }
 }
 
 // --- boot ---

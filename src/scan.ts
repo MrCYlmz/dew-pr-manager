@@ -2,6 +2,7 @@ import { collectOpenPullRequests } from "./github.ts";
 import { assignSetKeys, groupIntoChangeSets, isSpecPR } from "./domain/changeSets.ts";
 import { capHistory, diffScans } from "./domain/history.ts";
 import { deriveOwner } from "./domain/owner.ts";
+import { assignMentions } from "./domain/references.ts";
 import { computeLastActivityAt, deriveStatus } from "./domain/status.ts";
 import { notifyIfChanged } from "./notify.ts";
 import {
@@ -28,13 +29,14 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
     branchSetKey: facts.headRefName,
     setKey: facts.headRefName, // assignSetKeys below applies any manual link on top
     manuallyLinked: false,
+    mentions: [], // assignMentions in buildState fills this once the whole scan is known
   };
 }
 
 /** Turns already-fetched PR facts into the full prepared snapshot the UI reads (FR-4). */
 async function buildState(derivedPrs: DerivedPullRequest[], meta: ScanMeta): Promise<AppState> {
   const [links, notes, history] = await Promise.all([readLinks(), readNotes(), readHistory()]);
-  const prs = assignSetKeys(derivedPrs, links);
+  const prs = assignMentions(assignSetKeys(derivedPrs, links));
   const sets = groupIntoChangeSets(prs);
   return { meta, prs, sets, history, notes, links };
 }
