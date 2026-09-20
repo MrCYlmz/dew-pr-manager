@@ -15,7 +15,7 @@ export const DEFAULT_SPEC_RULE: SpecRule = {
 
 export const FETCH_CONCURRENCY = 5;
 
-export const PORT = Number(process.env.PR_MANAGER_PORT) || 4318;
+export const PORT = Number(process.env.PR_MANAGER_PORT) || 4317;
 export const NOTIFY_ENABLED = (process.env.PR_MANAGER_NOTIFY ?? "on").toLowerCase() !== "off";
 export const ACCOUNT = process.env.PR_MANAGER_ACCOUNT || null;
 

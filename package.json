@@ -1,7 +1,18 @@
 {
   "name": "dew-pr-manager",
+  "version": "0.1.0",
+  "description": "Local dashboard for your open GitHub PRs: status, owner, change sets and merge order. Bun + gh CLI, nothing to configure.",
+  "license": "MIT",
+  "author": "Celal Yilmaz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrCYlmz/dew-pr-manager.git"
+  },
   "private": true,
   "type": "module",
+  "engines": {
+    "bun": ">=1.2"
+  },
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
@@ -9,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.4.2",
     "typescript": "^5"
   }
 }

@@ -4,6 +4,15 @@ A personal, locally-run dashboard that answers one question each morning: which 
 pull requests need you, and which are stuck on someone else. Read-only — it reports state, it
 never reviews code and never merges anything.
 
+It scans every open PR you authored or were asked to review, across every repository your
+GitHub account can see, and gives each one exactly one **status** (draft, conflicted, CI failing,
+changes requested, review stale, ready to merge, stale, needs review) and one **owner** (you,
+the author, the reviewers). PRs that share a head branch name across repositories are grouped
+into a **change set**, and inside a set the spec PRs (e.g. an `-openapi` repo) are ordered ahead
+of their consumers.
+
+<!-- TODO: screenshot — `docs/screenshot.png` of the dashboard with a few change sets -->
+
 ## Run it
 
 Requires [Bun](https://bun.sh) and an already-authenticated [GitHub CLI](https://cli.github.com)
@@ -88,3 +97,12 @@ bun run typecheck
 The derivation logic (`src/domain/*.ts`) is unit tested. The GitHub client (`src/github.ts`) and
 the server/UI are verified by running the app against a real, authenticated `gh` account — there
 isn't a mocked GitHub API in here to test against instead.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the rules the code has to keep, and how to send
+a change. [SECURITY.md](SECURITY.md) describes exactly what the tool touches.
+
+## License
+
+[MIT](LICENSE) © Celal Yilmaz

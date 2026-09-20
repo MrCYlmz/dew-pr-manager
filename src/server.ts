@@ -67,6 +67,7 @@ async function readJsonBody<T>(req: Request): Promise<T | null> {
 }
 
 const server = Bun.serve({
+  hostname: "127.0.0.1",
   port: PORT,
   async fetch(req) {
     if (!isAllowedHost(req)) return new Response("Forbidden", { status: 403 });
