@@ -132,40 +132,31 @@ const els = {
 els.refreshIcon.innerHTML = icon("rotateCw");
 document.getElementById("settings-icon").innerHTML = icon("sliders");
 
-// Theme: a per-browser preference in localStorage, not a server setting (the spec-PR rule stays
-// the only persisted settings UI). "auto" means no data-theme attribute, so the OS media query
-// decides; index.html applies the saved value before first paint, this only keeps the button in
-// step and cycles it.
+// Theme: a per-browser preference in localStorage, never sent to the server — the spec-PR rule
+// is still the only setting the server persists. "auto" means no data-theme attribute, so the OS
+// media query decides. index.html applies the saved value before first paint; this re-applies it
+// on change from the Appearance section of the settings drawer.
 const THEME_KEY = "prManagerTheme";
 const THEMES = [
-  { key: "auto", label: "Auto", icon: "monitor", title: "Colour theme: follows the OS. Click to cycle." },
-  { key: "light", label: "Light", icon: "sun", title: "Colour theme: light. Click to cycle." },
-  { key: "dark", label: "Dark", icon: "moon", title: "Colour theme: dark. Click to cycle." },
+  { key: "auto", label: "Auto", icon: "monitor", hint: "Follows the operating system." },
+  { key: "light", label: "Light", icon: "sun", hint: "Always light." },
+  { key: "dark", label: "Dark", icon: "moon", hint: "Always dark." },
 ];
-function readTheme() {
-  try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+function currentTheme() {
+  let key = null;
+  try { key = localStorage.getItem(THEME_KEY); } catch {}
+  return THEMES.find((t) => t.key === key) ?? THEMES[0];
 }
-function applyTheme(key) {
+function setTheme(key) {
   const theme = THEMES.find((t) => t.key === key) ?? THEMES[0];
+  try {
+    if (theme.key === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, theme.key);
+  } catch {}
   if (theme.key === "auto") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme.key;
-  const btn = document.getElementById("theme-btn");
-  btn.title = theme.title;
-  btn.setAttribute("aria-label", `Colour theme: ${theme.label}`);
-  document.getElementById("theme-icon").innerHTML = icon(theme.icon);
-  document.getElementById("theme-label").textContent = theme.label;
   return theme;
 }
-applyTheme(readTheme());
-document.getElementById("theme-btn").addEventListener("click", () => {
-  const current = THEMES.findIndex((t) => t.key === (readTheme() ?? "auto"));
-  const next = THEMES[(Math.max(current, 0) + 1) % THEMES.length];
-  try {
-    if (next.key === "auto") localStorage.removeItem(THEME_KEY);
-    else localStorage.setItem(THEME_KEY, next.key);
-  } catch {}
-  applyTheme(next.key);
-});
 
 async function fetchState({ skipDrawer = false } = {}) {
   const res = await fetch("/api/state");
@@ -939,15 +930,29 @@ function updateSettingsPreview() {
 function renderSettings() {
   const rule = appState?.specRule;
   if (!rule) return;
+  const theme = currentTheme();
   els.settings.innerHTML = html`<div class="drawer-head">
       <div class="drawer-top">
-        <span class="chip chip-meta">Setting</span>
         <button type="button" class="drawer-close" id="settings-close-btn" aria-label="Close">${raw(icon("x"))}</button>
       </div>
-      <h2 class="drawer-title">What counts as a spec PR</h2>
-      <p class="settings-intro">A PR is a spec PR when either rule below matches. Spec PRs are merge step 1; everything else in their set is step 2. Words are comma-separated and case doesn't matter.</p>
+      <h2 class="drawer-title">Settings</h2>
     </div>
     <div class="drawer-body">
+      <section class="settings-section" aria-labelledby="appearance-title">
+        <h3 class="settings-section-title" id="appearance-title">Appearance</h3>
+        <p class="settings-intro">Colour theme for this browser. Applies immediately and is remembered here only.</p>
+        <div class="segmented" role="radiogroup" aria-label="Colour theme" id="theme-picker">
+          ${raw(THEMES.map((t) => html`<label class="segment${t.key === theme.key ? " is-on" : ""}">
+            <input type="radio" name="theme" value="${t.key}" ${raw(t.key === theme.key ? "checked" : "")} />
+            ${raw(icon(t.icon))}<span>${t.label}</span>
+          </label>`).join(""))}
+        </div>
+        <div class="field-hint" id="theme-hint">${theme.hint}</div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="spec-rule-title">
+        <h3 class="settings-section-title" id="spec-rule-title">Spec PR rule</h3>
+        <p class="settings-intro">A PR is a spec PR when either rule below matches. Spec PRs are merge step 1; everything else in their set is step 2. Words are comma-separated and case doesn't matter.</p>
       <div class="field">
         <label class="check-row"><input type="checkbox" id="rule-suffix-on" ${raw(rule.useRepoSuffix ? "checked" : "")} /> Repository name ends with</label>
         <input type="text" id="rule-suffixes" value="${rule.repoSuffixes.join(", ")}" placeholder="-openapi" spellcheck="false" autocomplete="off" />
@@ -964,9 +969,15 @@ function renderSettings() {
         <button type="button" class="btn" id="rule-reset">Reset to defaults</button>
         <span class="field-hint" id="rule-hint"></span>
       </div>
+      </section>
     </div>`;
 
   document.getElementById("settings-close-btn").addEventListener("click", closeSettings);
+  document.getElementById("theme-picker").addEventListener("change", (e) => {
+    const theme = setTheme(e.target.value);
+    for (const seg of e.currentTarget.querySelectorAll(".segment")) seg.classList.toggle("is-on", seg.querySelector("input").value === theme.key);
+    document.getElementById("theme-hint").textContent = theme.hint;
+  });
   for (const id of ["rule-suffix-on", "rule-suffixes", "rule-files-on", "rule-keywords"]) {
     document.getElementById(id).addEventListener("input", updateSettingsPreview);
   }

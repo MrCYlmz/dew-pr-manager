@@ -710,8 +710,46 @@ a:focus-visible {
 .field-hint { font-size: 11px; color: var(--ink-muted); margin-top: 5px; min-height: 15px; }
 .field-hint code { font-size: 10.5px; background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 
-/* Spec-rule panel (FR-4.15): same shell as the drawer, plus a couple of form rows. */
+/* Settings drawer: same shell as the PR drawer. Two sections, divided by a rule — Appearance
+   (a browser preference, applied on change) and the spec-PR rule (FR-4.15, saved to the server). */
+.settings-section { padding: 16px 0 18px; }
+.settings-section + .settings-section { border-top: 1px solid var(--hairline); margin-top: 4px; }
+.settings-section-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
 .settings-intro { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+
+.segmented {
+  display: inline-flex;
+  margin-top: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  padding: 2px;
+  background: var(--surface-2);
+  gap: 2px;
+}
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.segment svg { width: 13px; height: 13px; }
+.segment input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.segment:hover { color: var(--ink); }
+.segment.is-on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.segment:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 .drawer input[type="text"] {
   width: 100%;
   background: var(--surface-2);
