@@ -36,7 +36,7 @@ function icon(name, cls = "") {
 }
 
 const STATUS_META = {
-  DRAFT: { label: "Draft", color: "var(--st-draft)", icon: "edit" },
+  DRAFT: { label: "Draft", color: "var(--st-draft)", icon: "edit", hollow: true },
   CONFLICTED: { label: "Conflicted", color: "var(--st-conflicted)", icon: "alertTriangle" },
   CI_FAILING: { label: "CI failing", color: "var(--st-ci-failing)", icon: "xCircle" },
   CHANGES_REQUESTED: { label: "Changes requested", color: "var(--st-changes-requested)", icon: "cornerUpLeft" },
@@ -271,9 +271,20 @@ function renderSummary(sets, prs) {
     </div>`;
 }
 
+function swatch(meta) {
+  return meta.hollow
+    ? `<span class="swatch swatch-hollow" style="color:${meta.color}"></span>`
+    : `<span class="swatch" style="background:${meta.color}"></span>`;
+}
+
+// Class list for an SVG status mark (.node-rail / .node-dot); the CSS turns hollow into an outline.
+function markClass(base, meta) {
+  return meta.hollow ? `${base} is-hollow` : base;
+}
+
 function statusChip(status) {
   const meta = statusMeta(status);
-  return html`<span class="chip chip-status"><span class="swatch" style="background:${raw(meta.color)}"></span>${meta.label}</span>`;
+  return html`<span class="chip chip-status">${raw(swatch(meta))}${meta.label}</span>`;
 }
 
 function prRow(pr) {
@@ -393,9 +404,9 @@ function renderChanges(visibleKeys) {
         <span>
           <span class="change-ref">${raw(escapeHtml(shortKey(e.prKey)))}</span>
           <span class="change-flow">
-            ${raw(from ? `<span class="swatch" style="background:${from.color}"></span>` : "")}${fromLabel}
+            ${raw(from ? swatch(from) : "")}${fromLabel}
             <span class="arrow">→</span>
-            ${raw(to ? `<span class="swatch" style="background:${to.color}"></span>` : "")}<span class="to">${toLabel}</span>
+            ${raw(to ? swatch(to) : "")}<span class="to">${toLabel}</span>
           </span>
         </span>
         <span class="change-when">${raw(shortAge(e.at))}</span>
@@ -441,9 +452,9 @@ function wideNode(pr, x, y, order) {
   return `
     <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
       <rect class="node-box" x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="7"${dash} />
-      <rect class="node-rail" x="${x}" y="${y}" width="3" height="${NODE_H}" rx="1.5" fill="${meta.color}" />
+      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${x}" y="${y}" width="3" height="${NODE_H}" rx="1.5" />
       <text class="node-ref" x="${textX}" y="${y + 19}">${escapeHtml(shortRef(pr))}</text>
-      <circle cx="${textX + 3}" cy="${y + 33}" r="3.5" fill="${meta.color}" />
+      <circle class="${markClass("node-dot", meta)}" style="color:${meta.color}" cx="${textX + 3}" cy="${y + 33}" r="3.5" />
       <text class="node-meta" x="${textX + 12}" y="${y + 36}">${escapeHtml(meta.label)}</text>
       <text class="node-meta" x="${textX}" y="${y + 52}">${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions} · ${pr.changedFiles}f</text>
       ${nodeBadge(x + NODE_W - 14, y + 14, order)}
@@ -513,7 +524,7 @@ function verticalNode(pr, y, avail, order) {
   return `
     <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
       <rect class="node-box" x="${V_NODE_X}" y="${y}" width="${w}" height="${V_NODE_H}" rx="6"${dash} />
-      <rect class="node-rail" x="${V_NODE_X}" y="${y}" width="3" height="${V_NODE_H}" rx="1.5" fill="${meta.color}" />
+      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${V_NODE_X}" y="${y}" width="3" height="${V_NODE_H}" rx="1.5" />
       <text class="node-ref" x="${V_NODE_X + 12}" y="${y + 14}">${escapeHtml(shortRef(pr))}</text>
       <text class="node-meta" x="${V_NODE_X + 12}" y="${y + 27}">${escapeHtml(meta.label)} · ${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions}</text>
       <line x1="${V_BUS_X}" y1="${y + V_NODE_H / 2}" x2="${V_NODE_X}" y2="${y + V_NODE_H / 2}" class="bus" />
