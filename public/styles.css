@@ -2,15 +2,23 @@
  * Tokens. Light is defined on bare :root; dark redefines only what changes, under both the
  * OS media query and a [data-theme] stamp so a future toggle wins in either direction.
  *
- * Each of the eight statuses carries its own hue — no two statuses share a colour. The steps
- * were picked by running the palette validator over all 28 pairs in both modes and tuning the
- * tightest ones, not by eye. Eight mutually-distinguishable hues is more than the separation
- * floors can actually carry, so two caveats are permanent and deliberate:
- *   - the worst pairs are the ones whose confusion costs least (conflicted vs CI-failing are
- *     both "hard blocked"; ready vs CI-failing collide only under protanopia), and
- *   - colour is still NEVER the only carrier of meaning — every status ships as colour + icon
- *     + text label, which is also what covers the sub-3:1 light-surface steps.
- * Re-tune with scripts/validate_palette.js if these change. See STATUS_META in app.js.
+ * Status colour is spent per ACTION CLASS, not per status. Eight mutually distinguishable hues
+ * is past what colour vision can carry (the validator could only be satisfied with a crimson,
+ * an olive amber and a periwinkle), so the vocabulary is folded into four hues that each mean
+ * one thing for the reader: red = blocked, you must act (CONFLICTED, CI_FAILING,
+ * CHANGES_REQUESTED); amber = stale, yours but not urgent (STALE); blue = healthy, waiting for a
+ * look (NEEDS_REVIEW, REVIEW_STALE); green = READY_TO_MERGE. DRAFT is grey and drawn hollow.
+ * Statuses inside one class are told apart by icon and label, never by tone — colour is never
+ * the only carrier of meaning anyway.
+ *
+ * The steps pass every check of the dataviz palette validator over all pairs in both modes
+ * (light: worst CVD ΔE 9.4, normal 17.2; dark: 8.3 / 15.5; all >= 3:1 on their surface). Light
+ * separates red and amber by lightness, not hue, because under deuteranopia both collapse to the
+ * same brown. Dark is deliberately muted — low chroma, nothing above ~5:1 — so the marks read
+ * without glare on a dark surface. The one exception is the yellow: it sits above the dark
+ * lightness band (~7:1) because a dimmer yellow collapses into the green under deuteranopia;
+ * the validator reports that band miss and it is accepted deliberately. Re-run before changing any step:
+ *   node validate_palette.js "<blocked,stale,info,success>" --mode light --surface "#fcfcfb" --pairs all
  */
 :root {
   color-scheme: light;
@@ -28,27 +36,25 @@
   --rule: #c3c2b7;
 
   /* Interactive states (links, focus, active tab, hover) ride ink, not a hue: the blue that
-     used to live here was byte-identical to --st-needs-review, so a hovered title read as
+     used to live here was byte-identical to the needs-review blue, so a hovered title read as
      "needs review". Colour is a budget spent on statuses only. */
   --accent: var(--ink);
   --accent-wash: rgba(11, 11, 11, 0.06);
   --scrim: rgba(11, 11, 11, 0.42);
 
-  --st-draft: #898781;
-  --st-conflicted: #e34948;
-  --st-ci-failing: #e8751f;
-  --st-changes-requested: #eda100;
-  --st-review-stale: #e87ba4;
-  --st-ready: #008300;
-  --st-rotting: #4a3aa7;
-  --st-needs-review: #2a78d6;
+  /* Status colour is per ACTION CLASS, not per status (see the header comment). */
+  --cls-blocked: #a8102a;  /* CONFLICTED, CI_FAILING, CHANGES_REQUESTED — author must act */
+  --cls-stale: #a87400;    /* STALE — still yours, lower priority */
+  --cls-info: #2a78d6;     /* NEEDS_REVIEW, REVIEW_STALE — healthy, waiting for a look */
+  --cls-success: #059669;  /* READY_TO_MERGE */
+  --cls-neutral: #898781;  /* DRAFT — rendered hollow, see STATUS_META */
 
   /* Signal colours for things that are NOT statuses — a CI check's result, a tile accent.
      They borrow the status hexes because the meaning is the same, but they are named apart so
      nobody mistakes them for an entry in the status vocabulary. */
-  --sig-good: var(--st-ready);
-  --sig-warn: var(--st-changes-requested);
-  --sig-bad: var(--st-conflicted);
+  --sig-good: var(--cls-success);
+  --sig-warn: var(--cls-stale);
+  --sig-bad: var(--cls-blocked);
 
   --shadow: 0 1px 2px rgba(11, 11, 11, 0.05);
   --radius: 10px;
@@ -74,12 +80,10 @@
     --accent-wash: rgba(255, 255, 255, 0.08);
     --scrim: rgba(0, 0, 0, 0.6);
 
-    --st-conflicted: #f06c6c;
-    --st-ci-failing: #d95926;
-    --st-changes-requested: #c98500;
-    --st-review-stale: #f28ac4;
-    --st-rotting: #a878c8;
-    --st-needs-review: #3987e5;
+    --cls-blocked: #a8473a;
+    --cls-stale: #c2a22c;
+    --cls-info: #1a6f9c;
+    --cls-success: #4e9a5a;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
@@ -99,12 +103,10 @@
   --accent: var(--ink);
   --accent-wash: rgba(255, 255, 255, 0.08);
   --scrim: rgba(0, 0, 0, 0.6);
-  --st-conflicted: #f06c6c;
-  --st-ci-failing: #d95926;
-  --st-changes-requested: #c98500;
-  --st-review-stale: #f28ac4;
-  --st-rotting: #a878c8;
-  --st-needs-review: #3987e5;
+  --cls-blocked: #a8473a;
+  --cls-stale: #c2a22c;
+  --cls-info: #1a6f9c;
+  --cls-success: #4e9a5a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 

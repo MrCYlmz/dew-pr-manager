@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pull Request Manager</title>
 <link rel="stylesheet" href="/styles.css" />
+<script>
+  // Apply the saved theme before first paint so a forced theme never flashes the OS one.
+  // Absent or "auto" -> no attribute -> the prefers-color-scheme media query decides.
+  try { var t = localStorage.getItem("prManagerTheme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -18,6 +23,10 @@
     <button id="settings-btn" type="button" class="btn" aria-haspopup="dialog" aria-controls="settings">
       <span class="btn-icon" id="settings-icon" aria-hidden="true"></span>
       Spec rule
+    </button>
+    <button id="theme-btn" type="button" class="btn" title="Colour theme: follows the OS. Click to cycle.">
+      <span class="btn-icon" id="theme-icon" aria-hidden="true"></span>
+      <span id="theme-label">Auto</span>
     </button>
     <button id="refresh-btn" type="button" class="btn btn-refresh">
       <span class="btn-icon" id="refresh-icon" aria-hidden="true"></span>

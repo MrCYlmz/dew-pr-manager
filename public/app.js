@@ -26,7 +26,10 @@ const ICON_PATHS = {
   user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
   users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   alertCircle: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01",
-    sliders: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
+  sliders: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
+  sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42",
+  moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
+  monitor: "M20 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8 21h8M12 17v4",
 };
 
 function icon(name, cls = "") {
@@ -36,14 +39,17 @@ function icon(name, cls = "") {
 }
 
 const STATUS_META = {
-  DRAFT: { label: "Draft", color: "var(--st-draft)", icon: "edit", hollow: true },
-  CONFLICTED: { label: "Conflicted", color: "var(--st-conflicted)", icon: "alertTriangle" },
-  CI_FAILING: { label: "CI failing", color: "var(--st-ci-failing)", icon: "xCircle" },
-  CHANGES_REQUESTED: { label: "Changes requested", color: "var(--st-changes-requested)", icon: "cornerUpLeft" },
-  REVIEW_STALE: { label: "Review stale", color: "var(--st-review-stale)", icon: "rotateCw" },
-  READY_TO_MERGE: { label: "Ready to merge", color: "var(--st-ready)", icon: "checkCircle" },
-  STALE: { label: "Rotting", color: "var(--st-rotting)", icon: "clock" },
-  NEEDS_REVIEW: { label: "Needs review", color: "var(--st-needs-review)", icon: "eye" },
+  // Colour is per action class (see the token comment in styles.css): statuses that share a
+  // class share a hue and are told apart by icon + label. DRAFT is hollow: an outline, not a
+  // fill, so its grey never competes with the chromatic steps.
+  DRAFT: { label: "Draft", color: "var(--cls-neutral)", icon: "edit", hollow: true },
+  CONFLICTED: { label: "Conflicted", color: "var(--cls-blocked)", icon: "alertTriangle" },
+  CI_FAILING: { label: "CI failing", color: "var(--cls-blocked)", icon: "xCircle" },
+  CHANGES_REQUESTED: { label: "Changes requested", color: "var(--cls-blocked)", icon: "cornerUpLeft" },
+  REVIEW_STALE: { label: "Review stale", color: "var(--cls-info)", icon: "rotateCw" },
+  READY_TO_MERGE: { label: "Ready to merge", color: "var(--cls-success)", icon: "checkCircle" },
+  STALE: { label: "Rotting", color: "var(--cls-stale)", icon: "clock" },
+  NEEDS_REVIEW: { label: "Needs review", color: "var(--cls-info)", icon: "eye" },
 };
 
 const STATUS_ORDER = Object.keys(STATUS_META);
@@ -125,6 +131,41 @@ const els = {
 
 els.refreshIcon.innerHTML = icon("rotateCw");
 document.getElementById("settings-icon").innerHTML = icon("sliders");
+
+// Theme: a per-browser preference in localStorage, not a server setting (the spec-PR rule stays
+// the only persisted settings UI). "auto" means no data-theme attribute, so the OS media query
+// decides; index.html applies the saved value before first paint, this only keeps the button in
+// step and cycles it.
+const THEME_KEY = "prManagerTheme";
+const THEMES = [
+  { key: "auto", label: "Auto", icon: "monitor", title: "Colour theme: follows the OS. Click to cycle." },
+  { key: "light", label: "Light", icon: "sun", title: "Colour theme: light. Click to cycle." },
+  { key: "dark", label: "Dark", icon: "moon", title: "Colour theme: dark. Click to cycle." },
+];
+function readTheme() {
+  try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+}
+function applyTheme(key) {
+  const theme = THEMES.find((t) => t.key === key) ?? THEMES[0];
+  if (theme.key === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme.key;
+  const btn = document.getElementById("theme-btn");
+  btn.title = theme.title;
+  btn.setAttribute("aria-label", `Colour theme: ${theme.label}`);
+  document.getElementById("theme-icon").innerHTML = icon(theme.icon);
+  document.getElementById("theme-label").textContent = theme.label;
+  return theme;
+}
+applyTheme(readTheme());
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const current = THEMES.findIndex((t) => t.key === (readTheme() ?? "auto"));
+  const next = THEMES[(Math.max(current, 0) + 1) % THEMES.length];
+  try {
+    if (next.key === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next.key);
+  } catch {}
+  applyTheme(next.key);
+});
 
 async function fetchState({ skipDrawer = false } = {}) {
   const res = await fetch("/api/state");
