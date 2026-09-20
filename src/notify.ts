@@ -1,4 +1,4 @@
-import { NOTIFY_ENABLED, PORT } from "./config.ts";
+import { PORT } from "./config.ts";
 import type { HistoryEvent } from "./types.ts";
 
 const DASHBOARD_URL = `http://localhost:${PORT}`;
@@ -87,8 +87,8 @@ async function sendDesktopNotification(title: string, body: string): Promise<voi
   } catch {}
 }
 
-export async function notifyIfChanged(events: HistoryEvent[], isFirstScan: boolean): Promise<void> {
-  if (!NOTIFY_ENABLED || isFirstScan) return;
+export async function notifyIfChanged(events: HistoryEvent[], isFirstScan: boolean, enabled: boolean): Promise<void> {
+  if (!enabled || isFirstScan) return;
   const summary = buildNotification(events);
   if (summary) await sendDesktopNotification(summary.title, summary.body);
 }

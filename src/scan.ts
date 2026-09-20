@@ -10,6 +10,7 @@ import {
   readLinks,
   readNotes,
   readSnapshot,
+  readNotifySetting,
   readSpecRuleSetting,
   writeHistory,
   writeSnapshot,
@@ -36,16 +37,17 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
 }
 
 async function buildState(derivedPrs: DerivedPullRequest[], meta: ScanMeta): Promise<AppState> {
-  const [links, notes, history, ruleSetting] = await Promise.all([
+  const [links, notes, history, ruleSetting, notify] = await Promise.all([
     readLinks(),
     readNotes(),
     readHistory(),
     readSpecRuleSetting(),
+    readNotifySetting(),
   ]);
   const specRule = normalizeSpecRule(ruleSetting);
   const prs = assignMentions(assignSetKeys(applySpecRule(derivedPrs, specRule), links));
   const sets = groupIntoChangeSets(prs);
-  return { meta, prs, sets, history, notes, links, specRule };
+  return { meta, prs, sets, history, notes, links, specRule, notify };
 }
 
 async function buildEmptyState(): Promise<AppState> {
@@ -98,7 +100,7 @@ export async function runScan(): Promise<AppState> {
     await writeSnapshot({ prs: derived, meta });
     cachedState = state;
 
-    await notifyIfChanged(newEvents, isFirstScan);
+    await notifyIfChanged(newEvents, isFirstScan, state.notify);
 
     return state;
   } catch (err) {

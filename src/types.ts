@@ -127,4 +127,5 @@ export interface AppState {
   notes: Record<string, Note>;
   links: Record<string, string>;
   specRule: SpecRule;
+  notify: boolean;
 }

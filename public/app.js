@@ -901,30 +901,67 @@ function splitWords(text) {
   return [...new Set(text.split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
 }
 
+// The drawer is one form. Nothing in it takes effect until Save — the theme included, even
+// though it is stored in the browser — so every section has the same contract. Reset fills the
+// form with the defaults and still needs a Save.
 function readSettingsForm() {
   return {
-    useRepoSuffix: document.getElementById("rule-suffix-on").checked,
-    repoSuffixes: splitWords(document.getElementById("rule-suffixes").value),
-    useFileKeywords: document.getElementById("rule-files-on").checked,
-    fileKeywords: splitWords(document.getElementById("rule-keywords").value),
+    theme: document.querySelector('input[name="theme"]:checked')?.value ?? "auto",
+    notify: document.getElementById("notify-on").checked,
+    specRule: {
+      useRepoSuffix: document.getElementById("rule-suffix-on").checked,
+      repoSuffixes: splitWords(document.getElementById("rule-suffixes").value),
+      useFileKeywords: document.getElementById("rule-files-on").checked,
+      fileKeywords: splitWords(document.getElementById("rule-keywords").value),
+    },
   };
 }
 
-function updateSettingsPreview() {
-  const rule = readSettingsForm();
+function savedSettings() {
+  return { theme: currentTheme().key, notify: appState.notify, specRule: appState.specRule };
+}
+
+function fillSettingsForm({ theme, notify, specRule }) {
+  for (const input of document.querySelectorAll('input[name="theme"]')) input.checked = input.value === theme;
+  document.getElementById("notify-on").checked = notify;
+  document.getElementById("rule-suffix-on").checked = specRule.useRepoSuffix;
+  document.getElementById("rule-suffixes").value = specRule.repoSuffixes.join(", ");
+  document.getElementById("rule-files-on").checked = specRule.useFileKeywords;
+  document.getElementById("rule-keywords").value = specRule.fileKeywords.join(", ");
+  updateSettingsForm();
+}
+
+function sameSettings(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// Re-derives everything that depends on the form's current values: the theme segment highlight,
+// the spec-rule preview, the disabled inputs, and whether Save has anything to save.
+function updateSettingsForm() {
+  if (!settingsOpen) return;
+  const form = readSettingsForm();
+  for (const seg of document.querySelectorAll("#theme-picker .segment")) seg.classList.toggle("is-on", seg.querySelector("input").value === form.theme);
+  document.getElementById("theme-hint").textContent = THEMES.find((t) => t.key === form.theme).hint;
+
+  const rule = form.specRule;
   const preview = document.getElementById("rule-preview");
   const prs = appState?.prs ?? [];
   const inactive = (!rule.useRepoSuffix || rule.repoSuffixes.length === 0) && (!rule.useFileKeywords || rule.fileKeywords.length === 0);
   if (inactive) {
     preview.innerHTML = html`${raw(icon("alertCircle"))}Nothing matches — no PR will count as a spec PR, so every set's merge order becomes unknown.`;
     preview.className = "rule-preview is-warning";
-    return;
+  } else {
+    const n = prs.filter((pr) => previewSpecMatch(pr, rule)).length;
+    preview.textContent = `Would mark ${n} of ${plural(prs.length, "open PR", "open PRs")} as spec PRs.`;
+    preview.className = "rule-preview";
   }
-  const n = prs.filter((pr) => previewSpecMatch(pr, rule)).length;
-  preview.textContent = `Would mark ${n} of ${plural(prs.length, "open PR", "open PRs")} as spec PRs.`;
-  preview.className = "rule-preview";
   document.getElementById("rule-suffixes").disabled = !rule.useRepoSuffix;
   document.getElementById("rule-keywords").disabled = !rule.useFileKeywords;
+
+  const dirty = !sameSettings(form, savedSettings());
+  document.getElementById("settings-save").disabled = !dirty;
+  const hint = document.getElementById("settings-hint");
+  if (!hint.dataset.sticky) hint.textContent = dirty ? "Unsaved changes." : "";
 }
 
 function renderSettings() {
@@ -936,11 +973,12 @@ function renderSettings() {
         <button type="button" class="drawer-close" id="settings-close-btn" aria-label="Close">${raw(icon("x"))}</button>
       </div>
       <h2 class="drawer-title">Settings</h2>
+      <p class="settings-intro">Changes apply when you save.</p>
     </div>
     <div class="drawer-body">
       <section class="settings-section" aria-labelledby="appearance-title">
         <h3 class="settings-section-title" id="appearance-title">Appearance</h3>
-        <p class="settings-intro">Colour theme for this browser. Applies immediately and is remembered here only.</p>
+        <p class="settings-intro">Colour theme for this browser — remembered here only.</p>
         <div class="segmented" role="radiogroup" aria-label="Colour theme" id="theme-picker">
           ${raw(THEMES.map((t) => html`<label class="segment${t.key === theme.key ? " is-on" : ""}">
             <input type="radio" name="theme" value="${t.key}" ${raw(t.key === theme.key ? "checked" : "")} />
@@ -950,56 +988,63 @@ function renderSettings() {
         <div class="field-hint" id="theme-hint">${theme.hint}</div>
       </section>
 
+      <section class="settings-section" aria-labelledby="notify-title">
+        <h3 class="settings-section-title" id="notify-title">Notifications</h3>
+        <p class="settings-intro">One desktop notification per scan, only when something changed.</p>
+        <label class="check-row settings-toggle"><input type="checkbox" id="notify-on" ${raw(appState.notify ? "checked" : "")} /> Desktop notification when a PR changes status</label>
+      </section>
+
       <section class="settings-section" aria-labelledby="spec-rule-title">
         <h3 class="settings-section-title" id="spec-rule-title">Spec PR rule</h3>
         <p class="settings-intro">A PR is a spec PR when either rule below matches. Spec PRs are merge step 1; everything else in their set is step 2. Words are comma-separated and case doesn't matter.</p>
-      <div class="field">
-        <label class="check-row"><input type="checkbox" id="rule-suffix-on" ${raw(rule.useRepoSuffix ? "checked" : "")} /> Repository name ends with</label>
-        <input type="text" id="rule-suffixes" value="${rule.repoSuffixes.join(", ")}" placeholder="-openapi" spellcheck="false" autocomplete="off" />
-        <div class="field-hint">e.g. <code>billing-openapi</code> matches <code>-openapi</code>.</div>
-      </div>
-      <div class="field">
-        <label class="check-row"><input type="checkbox" id="rule-files-on" ${raw(rule.useFileKeywords ? "checked" : "")} /> A changed file's name contains</label>
-        <input type="text" id="rule-keywords" value="${rule.fileKeywords.join(", ")}" placeholder="openapi, swagger" spellcheck="false" autocomplete="off" />
-        <div class="field-hint">Matched against the full path, e.g. <code>docs/swagger.yaml</code> matches <code>swagger</code>.</div>
-      </div>
-      <div id="rule-preview" class="rule-preview"></div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="rule-save">Save</button>
-        <button type="button" class="btn" id="rule-reset">Reset to defaults</button>
-        <span class="field-hint" id="rule-hint"></span>
-      </div>
+        <div class="field">
+          <label class="check-row"><input type="checkbox" id="rule-suffix-on" ${raw(rule.useRepoSuffix ? "checked" : "")} /> Repository name ends with</label>
+          <input type="text" id="rule-suffixes" value="${rule.repoSuffixes.join(", ")}" placeholder="-openapi" spellcheck="false" autocomplete="off" />
+          <div class="field-hint">e.g. <code>billing-openapi</code> matches <code>-openapi</code>.</div>
+        </div>
+        <div class="field">
+          <label class="check-row"><input type="checkbox" id="rule-files-on" ${raw(rule.useFileKeywords ? "checked" : "")} /> A changed file's name contains</label>
+          <input type="text" id="rule-keywords" value="${rule.fileKeywords.join(", ")}" placeholder="openapi, swagger" spellcheck="false" autocomplete="off" />
+          <div class="field-hint">Matched against the full path, e.g. <code>docs/swagger.yaml</code> matches <code>swagger</code>.</div>
+        </div>
+        <div id="rule-preview" class="rule-preview"></div>
       </section>
+    </div>
+    <div class="drawer-foot">
+      <button type="button" class="btn btn-quiet" id="settings-reset">Reset to defaults</button>
+      <span class="field-hint" id="settings-hint"></span>
+      <button type="button" class="btn" id="settings-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="settings-save">Save</button>
     </div>`;
 
   document.getElementById("settings-close-btn").addEventListener("click", closeSettings);
-  document.getElementById("theme-picker").addEventListener("change", (e) => {
-    const theme = setTheme(e.target.value);
-    for (const seg of e.currentTarget.querySelectorAll(".segment")) seg.classList.toggle("is-on", seg.querySelector("input").value === theme.key);
-    document.getElementById("theme-hint").textContent = theme.hint;
+  document.getElementById("settings-save").addEventListener("click", saveSettings);
+  document.getElementById("settings-cancel").addEventListener("click", closeSettings);
+  document.getElementById("settings-reset").addEventListener("click", () => {
+    fillSettingsForm({ theme: "auto", notify: appState.defaults.notify, specRule: appState.defaults.specRule });
   });
-  for (const id of ["rule-suffix-on", "rule-suffixes", "rule-files-on", "rule-keywords"]) {
-    document.getElementById(id).addEventListener("input", updateSettingsPreview);
-  }
-  document.getElementById("rule-save").addEventListener("click", () => saveSpecRule(readSettingsForm()));
-  document.getElementById("rule-reset").addEventListener("click", () => saveSpecRule(null));
-  updateSettingsPreview();
+  updateSettingsForm();
 }
 
-async function saveSpecRule(rule) {
-  const hint = document.getElementById("rule-hint");
+async function saveSettings() {
+  const form = readSettingsForm();
+  const hint = document.getElementById("settings-hint");
+  hint.dataset.sticky = "1";
   hint.textContent = "Saving…";
-  const res = rule === null
-    ? await fetch("/api/settings/spec-rule", { method: "DELETE" })
-    : await fetch("/api/settings/spec-rule", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(rule),
-      });
+  document.getElementById("settings-save").disabled = true;
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ notify: form.notify, specRule: form.specRule }),
+  });
   appState = await res.json();
+  setTheme(form.theme);
   render({ skipDrawer: true });
   renderSettings();
-  document.getElementById("rule-hint").textContent = rule === null ? "Defaults restored." : "Saved — sets regrouped.";
+  const h = document.getElementById("settings-hint");
+  h.dataset.sticky = "1";
+  h.textContent = "Saved.";
+  setTimeout(() => { delete h.dataset.sticky; if (settingsOpen) updateSettingsForm(); }, 2500);
 }
 
 function openSettings() {
@@ -1021,6 +1066,9 @@ function closeSettings() {
 }
 
 els.settingsBtn.addEventListener("click", openSettings);
+// Delegated once on the drawer element: renderSettings() rebuilds its contents on every open and save.
+els.settings.addEventListener("input", updateSettingsForm);
+els.settings.addEventListener("change", updateSettingsForm);
 
 let resizeTimer = null;
 window.addEventListener("resize", () => {

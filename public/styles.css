@@ -682,6 +682,10 @@ a:focus-visible {
 .drawer-link svg { width: 12px; height: 12px; }
 
 .drawer-body { padding: 4px 16px 40px; }
+/* The settings drawer is a column so its Save foot sits at the bottom edge even when the form is
+   shorter than the viewport; sticky still keeps it in view when the form is taller. */
+#settings { display: flex; flex-direction: column; }
+#settings .drawer-body { flex: 1; padding-bottom: 16px; }
 
 .field { margin-top: 15px; }
 .field-label {
@@ -750,6 +754,23 @@ a:focus-visible {
 .segment:hover { color: var(--ink); }
 .segment.is-on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .segment:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.settings-toggle { margin: 12px 0 0; }
+/* One Save for the whole drawer: sticky at the bottom, mirroring the sticky head. */
+.drawer-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+}
+/* Reset (destructive, quiet) sits alone on the left; the status and the Cancel/Save pair are
+   pushed to the right so the primary action is the right-most control at the drawer's corner. */
+.drawer-foot .field-hint { margin: 0 0 0 auto; min-height: 0; }
+.btn-quiet { background: none; border-color: transparent; color: var(--ink-muted); padding-left: 6px; }
+.btn-quiet:hover { background: var(--surface-2); color: var(--ink); }
 .drawer input[type="text"] {
   width: 100%;
   background: var(--surface-2);

@@ -1,6 +1,6 @@
 import { mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { DATA_DIR } from "./config.ts";
+import { DATA_DIR, DEFAULT_NOTIFY } from "./config.ts";
 import type { DerivedPullRequest, HistoryEvent, ManualLink, Note, ScanMeta, SpecRule } from "./types.ts";
 
 const dataDir = join(process.cwd(), DATA_DIR);
@@ -62,6 +62,7 @@ export async function setNote(prKey: string, text: string): Promise<Record<strin
 
 interface Settings {
   specRule?: unknown;
+  notify?: unknown;
 }
 
 export async function readSpecRuleSetting(): Promise<unknown> {
@@ -72,6 +73,17 @@ export async function writeSpecRuleSetting(rule: SpecRule | null): Promise<void>
   const settings = await readJson<Settings>(settingsPath, {});
   if (rule === null) delete settings.specRule;
   else settings.specRule = rule;
+  await writeJsonAtomic(settingsPath, settings);
+}
+
+export async function readNotifySetting(): Promise<boolean> {
+  const value = (await readJson<Settings>(settingsPath, {})).notify;
+  return typeof value === "boolean" ? value : DEFAULT_NOTIFY;
+}
+
+export async function writeNotifySetting(enabled: boolean): Promise<void> {
+  const settings = await readJson<Settings>(settingsPath, {});
+  settings.notify = enabled;
   await writeJsonAtomic(settingsPath, settings);
 }
 

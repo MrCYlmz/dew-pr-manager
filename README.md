@@ -39,19 +39,19 @@ is still by head branch name only, and nothing is linked automatically.
 
 ## Environment variables
 
-Exactly three, all optional:
+Exactly two, both optional:
 
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `PR_MANAGER_ACCOUNT` | active `gh` account | Which logged-in GitHub CLI account to scan as, when more than one is signed in. Resolves that account's token via `gh auth token -u <login>` rather than switching the machine's active `gh` account. |
 | `PR_MANAGER_PORT` | `4317` | Which port to serve the dashboard on. |
-| `PR_MANAGER_NOTIFY` | `on` | Set to `off` to disable the batched desktop notification on change. See [Desktop notifications](#desktop-notifications) for what actually works on which platform. |
 
 ## Desktop notifications
 
 One native OS notification per scan, only when something actually changed, and never one per PR.
 It is a single shell call to whatever the platform already ships — there is no bundled
-notification library. Set `PR_MANAGER_NOTIFY=off` to turn it off entirely.
+notification library. Turn it off under **Settings → Notifications** in the dashboard and save; the switch is
+stored in `data/settings.json` and takes effect on the next scan.
 
 Platform support is uneven, and only Linux has been verified:
 
@@ -80,8 +80,8 @@ counts as a spec PR and every multi-PR set reports its merge order as unknown.
 ## Data
 
 State lives as plain JSON under `data/` (git-ignored, safe to delete): `links.json` (manual
-change-set links), `notes.json` (your per-PR notes), `settings.json` (your spec-PR rule, only
-present once you've changed it), `history.json` (the capped status-transition log), and
+change-set links), `notes.json` (your per-PR notes), `settings.json` (your spec-PR rule and the
+notification switch, only present once you've changed one), `history.json` (the capped status-transition log), and
 `snapshot.json` (the last successfully derived scan, so a restart or a failed scan still has
 something to show). Nothing about a PR itself is stored here — GitHub is the only source of
 truth for PR facts; this directory only holds the three things you added yourself (links,

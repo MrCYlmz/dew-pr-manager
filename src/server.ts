@@ -1,9 +1,9 @@
 import { PORT, SCAN_INTERVAL_MS } from "./config.ts";
 import { getCachedState, isScanning, regroup, runScan } from "./scan.ts";
 import { normalizeSpecRule } from "./domain/changeSets.ts";
-import { removeLink, setLink, setNote, writeSpecRuleSetting } from "./store.ts";
-import { DEFAULT_SPEC_RULE } from "./config.ts";
-import type { AppState } from "./types.ts";
+import { removeLink, setLink, setNote, writeNotifySetting, writeSpecRuleSetting } from "./store.ts";
+import { DEFAULT_NOTIFY, DEFAULT_SPEC_RULE } from "./config.ts";
+import type { AppState, SpecRule } from "./types.ts";
 
 const PUBLIC_DIR = new URL("../public/", import.meta.url);
 
@@ -43,7 +43,7 @@ async function serveStatic(pathname: string): Promise<Response> {
   return new Response(file);
 }
 
-function currentStatePayload(): AppState & { scanning: boolean } {
+function currentStatePayload(): AppState & { scanning: boolean; defaults: { notify: boolean; specRule: SpecRule } } {
   const state = getCachedState();
   const base: AppState = state ?? {
     meta: null as unknown as AppState["meta"],
@@ -53,8 +53,9 @@ function currentStatePayload(): AppState & { scanning: boolean } {
     notes: {},
     links: {},
     specRule: DEFAULT_SPEC_RULE,
+    notify: DEFAULT_NOTIFY,
   };
-  return { ...base, scanning: isScanning() };
+  return { ...base, scanning: isScanning(), defaults: { notify: DEFAULT_NOTIFY, specRule: DEFAULT_SPEC_RULE } };
 }
 
 async function readJsonBody<T>(req: Request): Promise<T | null> {
@@ -114,16 +115,13 @@ const server = Bun.serve({
       return jsonResponse(currentStatePayload());
     }
 
-    if (url.pathname === "/api/settings/spec-rule" && (req.method === "PUT" || req.method === "DELETE")) {
-      if (req.method === "PUT") {
-        const body = await readJsonBody<unknown>(req);
-        if (body == null || typeof body !== "object") {
-          return jsonResponse({ error: "a JSON body describing the rule is required" }, 400);
-        }
-        await writeSpecRuleSetting(normalizeSpecRule(body));
-      } else {
-        await writeSpecRuleSetting(null);
+    if (req.method === "PUT" && url.pathname === "/api/settings") {
+      const body = await readJsonBody<{ notify?: unknown; specRule?: unknown }>(req);
+      if (body == null || typeof body.notify !== "boolean" || body.specRule == null || typeof body.specRule !== "object") {
+        return jsonResponse({ error: "a JSON body with a boolean `notify` and an object `specRule` is required" }, 400);
       }
+      await writeNotifySetting(body.notify);
+      await writeSpecRuleSetting(normalizeSpecRule(body.specRule));
       await regroup();
       return jsonResponse(currentStatePayload());
     }
