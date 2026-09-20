@@ -26,16 +26,15 @@ function deriveFacts(facts: PullRequestFacts, viewerLogin: string): DerivedPullR
     status,
     owner: deriveOwner(status, facts, viewerLogin),
     lastActivityAt: computeLastActivityAt(facts),
-    isSpecPR: false, // buildState applies the current spec rule, so a rule edit needs no refetch
+    isSpecPR: false,
     branchSetKey: facts.headRefName,
-    setKey: facts.headRefName, // assignSetKeys below applies any manual link on top
+    setKey: facts.headRefName,
     manuallyLinked: false,
-    mentions: [], // assignMentions in buildState fills this once the whole scan is known
-    mergeStep: null, // groupIntoChangeSets assigns it once the set's members are known
+    mentions: [],
+    mergeStep: null,
   };
 }
 
-/** Turns already-fetched PR facts into the full prepared snapshot the UI reads (FR-4). */
 async function buildState(derivedPrs: DerivedPullRequest[], meta: ScanMeta): Promise<AppState> {
   const [links, notes, history, ruleSetting] = await Promise.all([
     readLinks(),
@@ -66,11 +65,6 @@ export function isScanning(): boolean {
   return scanning;
 }
 
-/**
- * FR-6.20-21: recompute sets and state from the last fetched facts, no GitHub refetch.
- * Used whenever a manual link, note or the spec-PR rule changes, and to serve a snapshot left on disk from a
- * previous run before the first scan of this process has completed.
- */
 export async function regroup(): Promise<AppState | null> {
   const snapshot = await readSnapshot();
   if (!snapshot) return cachedState;
@@ -78,11 +72,6 @@ export async function regroup(): Promise<AppState | null> {
   return cachedState;
 }
 
-/**
- * FR-7.23 + Resilience: one full scan. Overlapping scans are not started — a call that
- * arrives mid-scan just returns whatever's already on screen. A failure never clears the
- * dashboard: the previous snapshot's PRs keep being served, with the error surfaced in meta.
- */
 export async function runScan(): Promise<AppState> {
   if (scanning) {
     if (cachedState) return cachedState;

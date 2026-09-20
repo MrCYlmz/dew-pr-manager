@@ -28,12 +28,11 @@ export interface CheckItem {
   state: string;
 }
 
-/** Facts collected straight from GitHub for one PR (FR-1.3). Nothing derived. */
 export interface PullRequestFacts {
-  key: string; // "owner/repo#123"
+  key: string;
   owner: string;
-  repo: string; // "owner/repo"
-  repoName: string; // "repo" alone, for the -openapi suffix check
+  repo: string;
+  repoName: string;
   number: number;
   title: string;
   url: string;
@@ -45,7 +44,7 @@ export interface PullRequestFacts {
   mergeableState: MergeableState;
   reviewDecision: ReviewDecision;
   reviews: Review[];
-  requestedReviewers: string[]; // logins
+  requestedReviewers: string[];
   headCommitSha: string;
   checkRollupState: CheckRollupState;
   checks: CheckItem[];
@@ -60,23 +59,22 @@ export interface PullRequestFacts {
   body: string;
 }
 
-/** A PR plus everything the domain layer derives from those facts. */
 export interface DerivedPullRequest extends PullRequestFacts {
   status: Status;
   owner: Owner;
   lastActivityAt: string;
   isSpecPR: boolean;
-  branchSetKey: string; // grouping key from the head branch name
-  setKey: string; // branchSetKey, unless a manual link overrides it
+  branchSetKey: string;
+  setKey: string;
   manuallyLinked: boolean;
-  mentions: string[]; // keys of other PRs in this scan that the description refers to
-  mergeStep: 1 | 2 | null; // FR-4.15: 1 = spec PR, 2 = consumer; null when the set has no spec
+  mentions: string[];
+  mergeStep: 1 | 2 | null;
 }
 
 export interface ChangeSet {
   key: string;
   label: string;
-  members: DerivedPullRequest[]; // step 1 members first, then step 2; no order within a step
+  members: DerivedPullRequest[];
   status: Status;
   owner: Owner;
   mergeOrderKnown: boolean;
@@ -114,11 +112,6 @@ export interface ScanMeta {
   durationMs: number;
 }
 
-/**
- * FR-4.15: the user-editable half of spec-PR detection. The rule's SHAPE is fixed — a repo
- * name ending in one of the suffixes, or a changed file's name containing one of the words —
- * only the two switches and the word lists belong to the user. Matching is case-insensitive.
- */
 export interface SpecRule {
   useRepoSuffix: boolean;
   repoSuffixes: string[];
@@ -126,13 +119,12 @@ export interface SpecRule {
   fileKeywords: string[];
 }
 
-/** What the server hands the UI: one prepared snapshot, never a live GitHub call. */
 export interface AppState {
   meta: ScanMeta;
   prs: DerivedPullRequest[];
   sets: ChangeSet[];
   history: HistoryEvent[];
   notes: Record<string, Note>;
-  links: Record<string, string>; // prKey -> targetSetKey
-  specRule: SpecRule; // the rule the sets above were built with
+  links: Record<string, string>;
+  specRule: SpecRule;
 }

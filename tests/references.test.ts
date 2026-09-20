@@ -23,7 +23,6 @@ describe("extractMentionedKeys", () => {
   });
 
   test("a qualified reference is not also read as a bare one", () => {
-    // acme/billing#7 does not exist; the "#7" inside it must not resolve to acme/widgets#7.
     expect(extractMentionedKeys({ ...self, body: "Blocked by acme/billing#7" }, known)).toEqual([]);
   });
 

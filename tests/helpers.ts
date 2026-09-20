@@ -1,6 +1,5 @@
 import type { DerivedPullRequest, PullRequestFacts } from "../src/types.ts";
 
-/** A fully-populated, healthy-by-default PR. Override just the fields a test cares about. */
 export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
   return {
     key: "acme/widgets#1",
@@ -35,7 +34,6 @@ export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullReques
   };
 }
 
-/** A DerivedPullRequest with sane defaults, for change-set/history tests. */
 export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): DerivedPullRequest {
   const facts = makeFacts(overrides);
   return {

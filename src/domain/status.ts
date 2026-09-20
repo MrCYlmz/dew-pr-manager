@@ -1,7 +1,6 @@
 import { STALE_DAYS } from "../config.ts";
 import type { PullRequestFacts, Status } from "../types.ts";
 
-/** FR-2.4: the closed vocabulary, in FR-2.5's exact walk order. */
 export const STATUS_PRECEDENCE: Status[] = [
   "DRAFT",
   "CONFLICTED",
@@ -13,11 +12,6 @@ export const STATUS_PRECEDENCE: Status[] = [
   "NEEDS_REVIEW",
 ];
 
-/**
- * FR-2.6: "measured from last activity, not from creation" — the latest of the last
- * commit push, the last issue comment, and the last review submission. Falls back to
- * createdAt only if none of those signals exist yet.
- */
 export function computeLastActivityAt(facts: PullRequestFacts): string {
   const candidates = [facts.lastCommitAt, facts.lastCommentAt, facts.lastReviewAt].filter(
     (d): d is string => d != null,
@@ -32,7 +26,6 @@ function latestApproval(facts: PullRequestFacts) {
   return approvals.reduce((latest, r) => (r.submittedAt > latest.submittedAt ? r : latest));
 }
 
-/** FR-2.7: the newest approval was submitted against a commit older than the current head. */
 export function isApprovalStale(facts: PullRequestFacts): boolean {
   const approval = latestApproval(facts);
   if (approval == null) return false;
@@ -55,7 +48,6 @@ function isStale(facts: PullRequestFacts, now: Date): boolean {
   return ageMs > STALE_DAYS * 24 * 60 * 60 * 1000;
 }
 
-/** FR-2.5: build every predicate, then report the first match in precedence order. */
 export function deriveStatus(facts: PullRequestFacts, now: Date = new Date()): Status {
   const readyBase = isReadyBase(facts);
   const matches: Record<Status, boolean> = {
@@ -71,6 +63,5 @@ export function deriveStatus(facts: PullRequestFacts, now: Date = new Date()): S
   for (const status of STATUS_PRECEDENCE) {
     if (matches[status]) return status;
   }
-  // Unreachable: NEEDS_REVIEW is always true, so the loop always returns above.
   return "NEEDS_REVIEW";
 }

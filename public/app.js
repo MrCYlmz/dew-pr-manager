@@ -1,15 +1,8 @@
-// Vanilla JS, no framework, no build step — the whole client in one file (Platform: "Size").
-
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
 
-// FR-7.25: "since the user's previous visit, or the last 24 hours on a first visit" — and
-// "an already-open tab accumulates changes rather than resetting on every auto-refresh"
-// means this cutoff is captured ONCE per page load, not recomputed on every poll.
 const sessionCutoff = localStorage.getItem(LAST_VISIT_KEY);
 localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
-
-// --- icons: one 24x24 stroke path set, drawn in currentColor so they theme themselves. ---
 
 const ICON_PATHS = {
   check: "M20 6L9 17l-5-5",
@@ -42,13 +35,6 @@ function icon(name, cls = "") {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 
-/**
- * The status vocabulary, as the UI presents it (FR-2.4 order).
- *
- * One hue per status — no two statuses share a colour. The hexes behind these tokens were
- * chosen by measurement (see the note at the top of styles.css); each status still ships a
- * distinct icon and a text label, so colour is never the only channel.
- */
 const STATUS_META = {
   DRAFT: { label: "Draft", color: "var(--st-draft)", icon: "edit" },
   CONFLICTED: { label: "Conflicted", color: "var(--st-conflicted)", icon: "alertTriangle" },
@@ -65,8 +51,6 @@ const STATUS_ORDER = Object.keys(STATUS_META);
 function statusMeta(status) {
   return STATUS_META[status] ?? { label: status, color: "var(--ink-muted)", icon: "alertCircle" };
 }
-
-// --- tiny safe-HTML templating: escapes every interpolated value unless wrapped in raw(). ---
 
 class Raw {
   constructor(value) { this.value = value; }
@@ -95,7 +79,6 @@ function timeAgo(iso) {
   return `${mins}m ago`;
 }
 
-/** Compact age for a chip: "3d", "5h", "12m". */
 function shortAge(iso) {
   if (!iso) return "?";
   const ms = Date.now() - new Date(iso).getTime();
@@ -110,17 +93,13 @@ function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** "acme/widgets#12" -> "widgets#12": the org repeats on every row and carries no signal. */
 function shortRef(pr) {
   return `${pr.repoName ?? pr.repo}#${pr.number}`;
 }
 
-/** The same trim for a bare PR key from the history log, which has no repoName field. */
 function shortKey(prKey) {
   return prKey.includes("/") ? prKey.slice(prKey.indexOf("/") + 1) : prKey;
 }
-
-// --- state ---
 
 let appState = null;
 let currentView = new URLSearchParams(location.search).get("view") || "overview";
@@ -156,7 +135,6 @@ async function fetchState({ skipDrawer = false } = {}) {
 async function refresh() {
   els.refreshBtn.disabled = true;
   els.refreshLabel.textContent = "Scanning…";
-  // Anti-pattern to avoid: a skeleton flash on refetch. Hold the last render, dim it.
   els.shell.classList.add("is-refetching");
   try {
     const res = await fetch("/api/refresh", { method: "POST" });
@@ -186,8 +164,6 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-// --- view scoping: FR "a change set is never split by a filter" ---
-
 function setMatchesView(set, view, viewerLogin) {
   if (view === "overview") return true;
   if (!viewerLogin) return false;
@@ -209,11 +185,6 @@ function countForView(view) {
   return new Set(sets.flatMap((s) => s.members.map((m) => m.key))).size;
 }
 
-// --- render orchestration ---
-
-// FR: "a background refresh must never close or re-render the drawer under the cursor" —
-// skipDrawer lets a passive poll update everything else while leaving an open drawer (and
-// whatever the user is mid-typing into its note field) completely untouched.
 function render({ skipDrawer = false } = {}) {
   renderHeader();
   renderTabs();
@@ -279,16 +250,11 @@ function renderTabs() {
   }
 }
 
-// --- summary: a quiet row of counters ---
-
 function renderSummary(sets, prs) {
   const ready = sets.filter((s) => s.status === "READY_TO_MERGE").length;
   const rotting = sets.filter((s) => s.status === "STALE").length;
   const blocked = sets.filter((s) => ["CONFLICTED", "CI_FAILING", "CHANGES_REQUESTED"].includes(s.status)).length;
 
-  // A quiet, monochrome counter row — no hero figure and no status hues. "Waiting on you" is
-  // not repeated here: it is the heading of its own bucket below, where the sets it counts are
-  // actually listed, so the number and the work it refers to stay in one place.
   const tiles = [
     { value: prs.length, label: "Open PRs", icon: "layers" },
     { value: sets.length, label: "Change sets", icon: "gitBranch" },
@@ -304,8 +270,6 @@ function renderSummary(sets, prs) {
       </div>`).join(""))}
     </div>`;
 }
-
-// --- PR rows and change-set cards ---
 
 function statusChip(status) {
   const meta = statusMeta(status);
@@ -358,16 +322,6 @@ function setCard(set) {
   </div>`;
 }
 
-// --- overview buckets ---
-// FR names exactly six buckets. A set whose owner is 'author' (blocked on someone other than
-// the viewer or "reviewers" generically — e.g. a PR you're reviewing that currently has merge
-// conflicts) has no home among those six; it stays reachable via the tabs/connections/drawer
-// instead of being force-fit into a bucket the spec didn't name.
-//
-// The array order is MATCH precedence (first match wins), which is not the display order:
-// a bot PR is a bot PR before it is anything else, and a set that is ready to merge belongs
-// under "Ready to merge" even though its owner is you. `rank` gives the display order the
-// spec asks for, most urgent first.
 const BUCKETS = [
   { key: "bot", rank: 5, title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot", match: (s) => s.members.every((m) => m.authorIsBot) },
   { key: "ready", rank: 1, title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle", match: (s) => s.status === "READY_TO_MERGE" },
@@ -414,8 +368,6 @@ function renderBuckets(sets) {
   </div>`;
 }
 
-// --- changes since last visit (FR-7.25) ---
-
 function renderChanges(visibleKeys) {
   const cutoff = sessionCutoff ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const events = appState.history
@@ -461,19 +413,6 @@ function renderChanges(visibleKeys) {
   </section>`;
 }
 
-// --- connections: the change-set map, and the reason this app exists (FR "Connections") ---
-//
-// Two layouts of the same diagram, chosen by how much width the panel actually has:
-//
-//  * Wide — the spec's shape. Spec PRs on a top row, consumers on a row beneath, joined by a
-//    SINGLE horizontal bus rather than one line per pair. Read it top to bottom: everything on
-//    the bus depends on what is above it.
-//  * Narrow (or a set too big to fit one row per tier) — the same graph stacked vertically,
-//    with the bus running down the left. Nothing is dropped, only re-flowed.
-//
-// The SVG is laid out in real pixels against the measured container width and its viewBox
-// matches 1:1, so nothing is ever scaled down into illegibility.
-
 const NODE_W = 216;
 const NODE_H = 62;
 const GAP_X = 18;
@@ -484,7 +423,6 @@ const V_GAP = 9;
 const V_BUS_X = 14;
 const V_NODE_X = 30;
 
-// FR-4.15: the badge is the merge STEP, not a position — every spec PR is 1, every consumer 2.
 function stepOf(pr) {
   return pr.mergeStep == null ? "?" : String(pr.mergeStep);
 }
@@ -496,7 +434,6 @@ function nodeBadge(x, y, text) {
     </g>`;
 }
 
-/** A node in the wide layout: status rail, reference, status, age and size. */
 function wideNode(pr, x, y, order) {
   const meta = statusMeta(pr.status);
   const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
@@ -528,7 +465,6 @@ function wideDiagram(set, avail) {
   const centers = [];
 
   if (specs.length > 0) {
-    // Two tiers: specs feed the bus, consumers hang off it.
     const specY = 12;
     const busY = specY + NODE_H + GAP_Y / 2;
     const consY = busY + GAP_Y / 2;
@@ -556,8 +492,6 @@ function wideDiagram(set, avail) {
     return { svg: bus + stems.join("") + parts.join(""), height: consY + NODE_H + 6 };
   }
 
-  // No spec member: one row, and the bus above it is dashed — these ship together but
-  // nothing in the data says which goes first (FR-4.15).
   const busY = 14;
   const rowY = busY + GAP_Y / 2;
   let x = rowStartX(set.members.length, avail);
@@ -588,7 +522,6 @@ function verticalNode(pr, y, avail, order) {
 }
 
 function verticalDiagram(set, avail) {
-  // Members already come step 1 first, then step 2.
   let y = 6;
   const nodes = set.members.map((pr) => {
     const node = verticalNode(pr, y, avail, stepOf(pr));
@@ -644,7 +577,6 @@ function renderConnections(sets) {
     return;
   }
 
-  // Lay out against the real width so the diagram renders 1:1 instead of being scaled down.
   const avail = Math.max(300, Math.round((els.connections.clientWidth || 1200) - 34));
 
   els.connections.innerHTML = html`<section class="panel">
@@ -659,16 +591,12 @@ function renderConnections(sets) {
   </section>`;
 }
 
-// --- click + keyboard routing into the drawer ---
-
 for (const el of [els.buckets, els.changes, els.connections]) {
   el.addEventListener("click", (e) => {
     const node = e.target.closest("[data-pr-key]");
     if (node) openDrawer(node.dataset.prKey);
   });
 }
-
-// --- detail drawer ---
 
 function findPr(prKey) {
   return appState?.prs.find((p) => p.key === prKey) ?? null;
@@ -716,7 +644,6 @@ function scheduleNoteSave(prKey, text, hintEl) {
     });
     appState = await res.json();
     if (hintEl) hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
-    // Skip the drawer so the textarea the user is typing into keeps its focus/cursor.
     render({ skipDrawer: true });
   }, 800);
 }
@@ -740,7 +667,7 @@ const OWNER_LABEL = { you: "You", author: "The author", reviewers: "Reviewers" }
 function renderDrawer() {
   if (!drawerPrKey) return;
   const pr = findPr(drawerPrKey);
-  if (!pr) return; // FR: a background refresh must never close/re-render the drawer under the cursor.
+  if (!pr) return;
 
   els.scrim.classList.remove("hidden");
   els.drawer.classList.remove("hidden");
@@ -779,15 +706,11 @@ function renderDrawer() {
         .join("")
     : html`<div class="empty">No reviews yet.</div>`;
 
-  // The description is third-party text: it goes through the escaper like everything else,
-  // and the only navigation it can trigger is to PRs the server already resolved.
   const descriptionHtml = pr.body.trim()
     ? html`<p class="description ${raw(descriptionExpanded ? "" : "is-clamped")}" id="description-text">${pr.body.trim()}</p>
       <button type="button" class="link-btn" id="description-toggle" hidden>${raw(descriptionExpanded ? "Show less" : "Show more")}</button>`
     : html`<div class="empty">No description.</div>`;
 
-  // Mentions are suggestions only: grouping stays by branch name (FR-4.10) unless the user
-  // takes the offered manual link (FR-6), which is the same operation as the select below.
   const mentionsHtml = pr.mentions
     .map((key) => findPr(key))
     .filter((m) => m != null)
@@ -900,7 +823,6 @@ function renderDrawer() {
   els.drawer.querySelectorAll("[data-join-set]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.joinSet;
-      // Joining the set this PR's own branch already names is just an unlink.
       handleLinkChange(pr.key, target === pr.branchSetKey ? "__branch__" : target);
     });
   });
@@ -916,15 +838,8 @@ function renderDrawer() {
   }
 }
 
-// --- spec-PR rule (FR-4.15): the one setting the user owns ---
-//
-// The rule's shape is fixed — repo-name suffix or changed-file keyword — the user only picks
-// which halves are on and which words they match. Saving regroups from the snapshot without a
-// GitHub refetch, exactly like a manual link.
-
 let settingsOpen = false;
 
-/** Client-side mirror of the domain's isSpecPR, only for the live "would mark N PRs" preview. */
 function previewSpecMatch(pr, rule) {
   if (rule.useRepoSuffix) {
     const repo = pr.repoName.toLowerCase();
@@ -1044,9 +959,6 @@ function closeSettings() {
 
 els.settingsBtn.addEventListener("click", openSettings);
 
-// --- boot ---
-
-// The connections diagram is laid out against a measured width, so a resize has to re-lay it.
 let resizeTimer = null;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);

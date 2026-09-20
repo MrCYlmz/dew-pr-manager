@@ -1,13 +1,6 @@
 import { HISTORY_CAP } from "../config.ts";
 import type { DerivedPullRequest, HistoryEvent } from "../types.ts";
 
-/**
- * FR-7.24: diff two consecutive scans into transition events, including PRs that appeared
- * and PRs that vanished (merged or closed — the spec doesn't ask us to tell those apart).
- * A null `previous` means this is the server's first scan ever: there's no baseline to
- * diff against, so (matching FR-8.28's "a fresh baseline is not a change") it produces no
- * events rather than reporting every pre-existing PR as newly "appeared".
- */
 export function diffScans(
   previous: DerivedPullRequest[] | null,
   current: DerivedPullRequest[],
@@ -64,15 +57,10 @@ export function diffScans(
   return events;
 }
 
-/** FR-7.24: keep only the most recent HISTORY_CAP events. */
 export function capHistory(events: HistoryEvent[], cap: number = HISTORY_CAP): HistoryEvent[] {
   return events.length > cap ? events.slice(events.length - cap) : events;
 }
 
-/**
- * FR-7.25: transitions since the user's previous visit, or the last 24 hours on a first
- * visit (sinceIso == null).
- */
 export function selectRecentHistory(
   history: HistoryEvent[],
   sinceIso: string | null,

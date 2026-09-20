@@ -20,15 +20,12 @@ async function readJson<T>(path: string, fallback: T): Promise<T> {
   return (await file.json()) as T;
 }
 
-/** Write to a temp file then rename over the target, so a crash mid-write can't corrupt it. */
 async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   await ensureDataDir();
   const tmpPath = `${path}.tmp`;
   await Bun.write(tmpPath, JSON.stringify(value, null, 2));
   await rename(tmpPath, path);
 }
-
-// --- Manual links (FR-6.19-20): PR key -> target change-set key. ---
 
 export async function readLinks(): Promise<Record<string, string>> {
   return readJson<Record<string, string>>(linksPath, {});
@@ -48,8 +45,6 @@ export async function removeLink(prKey: string): Promise<Record<string, string>>
   return links;
 }
 
-// --- Notes (FR-6.22): free-text note per PR, keyed by PR. Clearing the text deletes it. ---
-
 export async function readNotes(): Promise<Record<string, Note>> {
   return readJson<Record<string, Note>>(notesPath, {});
 }
@@ -65,9 +60,6 @@ export async function setNote(prKey: string, text: string): Promise<Record<strin
   return notes;
 }
 
-// --- Settings (FR-4.15): the one dashboard-editable tunable, the spec-PR rule. Absent file or
-// key means "use the defaults from config.ts"; the caller normalizes whatever is here.
-
 interface Settings {
   specRule?: unknown;
 }
@@ -76,15 +68,12 @@ export async function readSpecRuleSetting(): Promise<unknown> {
   return (await readJson<Settings>(settingsPath, {})).specRule;
 }
 
-/** `null` removes the override so the defaults apply again. */
 export async function writeSpecRuleSetting(rule: SpecRule | null): Promise<void> {
   const settings = await readJson<Settings>(settingsPath, {});
   if (rule === null) delete settings.specRule;
   else settings.specRule = rule;
   await writeJsonAtomic(settingsPath, settings);
 }
-
-// --- Status history (FR-7.24): capped list of transition events, already capped by the caller. ---
 
 export async function readHistory(): Promise<HistoryEvent[]> {
   return readJson<HistoryEvent[]>(historyPath, []);
@@ -93,10 +82,6 @@ export async function readHistory(): Promise<HistoryEvent[]> {
 export async function writeHistory(events: HistoryEvent[]): Promise<void> {
   await writeJsonAtomic(historyPath, events);
 }
-
-// --- Last-good snapshot: rebuilt every scan, but persisted so a restart or a failed scan
-// still has something to serve (Platform and constraints: "stale data with a warning beats
-// a blank page").
 
 export interface Snapshot {
   prs: DerivedPullRequest[];

@@ -14,7 +14,6 @@ export interface CollectResult {
   prs: PullRequestFacts[];
 }
 
-/** Runs `gh <args>` as a subprocess (argv array, never a shell string — no injection risk). */
 async function runGh(args: string[], env: Env): Promise<string> {
   const proc = Bun.spawn(["gh", ...args], { stdout: "pipe", stderr: "pipe", env });
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -45,11 +44,6 @@ async function ghGraphql<T>(
   return parsed.data as T;
 }
 
-/**
- * FR-1.2 (partly) + "three optional environment settings": with PR_MANAGER_ACCOUNT set,
- * resolve that account's token via `gh auth token -u <login>` and use it for every call
- * below, instead of mutating the machine's globally-active `gh` account.
- */
 async function resolveEnv(): Promise<Env> {
   const base = process.env as Env;
   if (!ACCOUNT) return base;
@@ -57,7 +51,6 @@ async function resolveEnv(): Promise<Env> {
   return { ...base, GH_TOKEN: token };
 }
 
-/** FR-1.2: identify the user from the credential in use, never a configured name. */
 async function resolveViewerLogin(env: Env): Promise<string> {
   return (await runGh(["api", "user", "--jq", ".login"], env)).trim();
 }
@@ -82,7 +75,6 @@ interface SearchResponse {
   };
 }
 
-/** FR-1.1: one open, non-archived, viewer-scoped PR search (author or review-requested). */
 async function searchOpenPRs(env: Env, qualifier: string): Promise<PRRef[]> {
   const refs: PRRef[] = [];
   let cursor: string | undefined;
@@ -147,7 +139,6 @@ query($owner: String!, $repo: String!, $number: Int!) {
   }
 }`;
 
-// Minimal typing for the pieces of the GraphQL response this module actually reads.
 interface DetailResponse {
   repository: {
     pullRequest: {
@@ -248,7 +239,6 @@ function mapDetail(owner: string, repo: string, data: DetailResponse): PullReque
   };
 }
 
-/** A tiny fixed-concurrency pool — enough to keep a large PR queue from tripping rate limits. */
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -266,11 +256,6 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-/**
- * FR-1 + Data model: two searches (authored, review-requested), then one detail fetch per
- * unique PR at a small fixed concurrency. Grouping/derivation happens elsewhere — this
- * module only collects facts.
- */
 export async function collectOpenPullRequests(): Promise<CollectResult> {
   const env = await resolveEnv();
   const viewerLogin = await resolveViewerLogin(env);
