@@ -2,10 +2,9 @@ import { PORT, SCAN_INTERVAL_MS } from "./config.ts";
 import { getCachedState, isScanning, regroup, runScan } from "./scan.ts";
 import { normalizeSpecRule } from "./domain/changeSets.ts";
 import { removeLink, setLink, setNote, writeNotifySetting, writeSpecRuleSetting } from "./store.ts";
+import { serveStatic } from "./static.ts";
 import { DEFAULT_NOTIFY, DEFAULT_SPEC_RULE } from "./config.ts";
 import type { AppState, SpecRule } from "./types.ts";
-
-const PUBLIC_DIR = new URL("../public/", import.meta.url);
 
 const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 const ALLOWED_HOSTS = new Set(LOOPBACK_HOSTS.flatMap((h) => [`${h}:${PORT}`, ...(PORT === 80 ? [h] : [])]));
@@ -34,13 +33,6 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" },
   });
-}
-
-async function serveStatic(pathname: string): Promise<Response> {
-  const relative = pathname === "/" ? "index.html" : pathname.slice(1);
-  const file = Bun.file(new URL(relative, PUBLIC_DIR));
-  if (!(await file.exists())) return new Response("Not found", { status: 404 });
-  return new Response(file);
 }
 
 function currentStatePayload(): AppState & { scanning: boolean; defaults: { notify: boolean; specRule: SpecRule } } {

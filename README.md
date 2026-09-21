@@ -15,7 +15,7 @@ of their consumers.
 
 ## Run it
 
-Requires [Bun](https://bun.sh) and an already-authenticated [GitHub CLI](https://cli.github.com)
+Requires [Bun](https://bun.sh) 1.3.5 or newer and an already-authenticated [GitHub CLI](https://cli.github.com)
 (`gh auth status` should show a logged-in account). Nothing else to configure.
 
 ```sh
