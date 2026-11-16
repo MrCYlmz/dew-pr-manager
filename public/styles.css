@@ -517,6 +517,9 @@ a:focus-visible {
 
 /* ----------------------------------------------------------------- changes */
 
+.changes-panel { height: 420px; display: flex; flex-direction: column; }
+.changes-panel .panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+
 .change-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

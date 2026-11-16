@@ -1,3 +1,9 @@
+import { diagramLayout, stepOf, V_BUS_X } from "./connectionsLayout.js";
+import { escapeHtml, html, raw } from "./html.js";
+import { previewSpecMatch, sameSettings, splitWords } from "./settings.js";
+import { statusMeta } from "./statusMeta.js";
+import { countForView, setMatchesView } from "./views.js";
+
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
 
@@ -36,42 +42,6 @@ function icon(name, cls = "") {
   const d = ICON_PATHS[name];
   if (!d) return "";
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
-}
-
-const STATUS_META = {
-  // Colour is per action class (see the token comment in styles.css): statuses that share a
-  // class share a hue and are told apart by icon + label. DRAFT is hollow: an outline, not a
-  // fill, so its grey never competes with the chromatic steps.
-  DRAFT: { label: "Draft", color: "var(--cls-neutral)", icon: "edit", hollow: true },
-  CONFLICTED: { label: "Conflicted", color: "var(--cls-blocked)", icon: "alertTriangle" },
-  CI_FAILING: { label: "CI failing", color: "var(--cls-blocked)", icon: "xCircle" },
-  CHANGES_REQUESTED: { label: "Changes requested", color: "var(--cls-blocked)", icon: "cornerUpLeft" },
-  REVIEW_STALE: { label: "Review stale", color: "var(--cls-info)", icon: "rotateCw" },
-  READY_TO_MERGE: { label: "Ready to merge", color: "var(--cls-success)", icon: "checkCircle" },
-  STALE: { label: "Rotting", color: "var(--cls-stale)", icon: "clock" },
-  NEEDS_REVIEW: { label: "Needs review", color: "var(--cls-info)", icon: "eye" },
-};
-
-const STATUS_ORDER = Object.keys(STATUS_META);
-
-function statusMeta(status) {
-  return STATUS_META[status] ?? { label: status, color: "var(--ink-muted)", icon: "alertCircle" };
-}
-
-class Raw {
-  constructor(value) { this.value = value; }
-}
-function raw(value) { return new Raw(value); }
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[c]);
-}
-function html(strings, ...values) {
-  return strings.reduce(
-    (acc, str, i) => acc + str + (i < values.length ? (values[i] instanceof Raw ? values[i].value : escapeHtml(values[i])) : ""),
-    "",
-  );
 }
 
 function timeAgo(iso) {
@@ -196,25 +166,10 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-function setMatchesView(set, view, viewerLogin) {
-  if (view === "overview") return true;
-  if (!viewerLogin) return false;
-  if (view === "mine") return set.members.some((m) => m.author === viewerLogin);
-  if (view === "review") return set.members.some((m) => (m.requestedReviewers || []).includes(viewerLogin));
-  return true;
-}
-
 function visibleSets() {
   if (!appState) return [];
   const viewerLogin = appState.meta?.ranAs ?? null;
   return appState.sets.filter((s) => setMatchesView(s, currentView, viewerLogin));
-}
-
-function countForView(view) {
-  if (!appState) return 0;
-  const viewerLogin = appState.meta?.ranAs ?? null;
-  const sets = appState.sets.filter((s) => setMatchesView(s, view, viewerLogin));
-  return new Set(sets.flatMap((s) => s.members.map((m) => m.key))).size;
 }
 
 function render({ skipDrawer = false } = {}) {
@@ -278,7 +233,7 @@ function renderTabs() {
     btn.classList.toggle("is-active", btn.dataset.view === currentView);
   }
   for (const [view, id] of [["overview", "count-overview"], ["mine", "count-mine"], ["review", "count-review"]]) {
-    document.getElementById(id).textContent = appState?.meta ? countForView(view) : "";
+    document.getElementById(id).textContent = appState?.meta ? countForView(appState, view, appState.meta.ranAs ?? null) : "";
   }
 }
 
@@ -414,7 +369,7 @@ function renderChanges(visibleKeys) {
     .sort((a, b) => (a.at < b.at ? 1 : -1));
 
   if (events.length === 0) {
-    els.changes.innerHTML = html`<section class="panel">
+    els.changes.innerHTML = html`<section class="panel changes-panel">
       <div class="panel-head"><h2 class="panel-title">Changes</h2></div>
       <div class="empty">Nothing has moved since your last visit.</div>
     </section>`;
@@ -441,7 +396,7 @@ function renderChanges(visibleKeys) {
     })
     .join("");
 
-  els.changes.innerHTML = html`<section class="panel">
+  els.changes.innerHTML = html`<section class="panel changes-panel">
     <div class="panel-head">
       <h2 class="panel-title">Changes</h2>
       <span class="panel-count">${events.length}</span>
@@ -451,20 +406,6 @@ function renderChanges(visibleKeys) {
   </section>`;
 }
 
-const NODE_W = 216;
-const NODE_H = 62;
-const GAP_X = 18;
-const GAP_Y = 26;
-
-const V_NODE_H = 34;
-const V_GAP = 9;
-const V_BUS_X = 14;
-const V_NODE_X = 30;
-
-function stepOf(pr) {
-  return pr.mergeStep == null ? "?" : String(pr.mergeStep);
-}
-
 function nodeBadge(x, y, text) {
   return `<g class="node-badge">
       <circle cx="${x}" cy="${y}" r="9" />
@@ -472,113 +413,65 @@ function nodeBadge(x, y, text) {
     </g>`;
 }
 
-function wideNode(pr, x, y, order) {
+function wideNode({ pr, x, y, width, height, badge }) {
   const meta = statusMeta(pr.status);
   const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
   const textX = x + 14;
   return `
     <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
-      <rect class="node-box" x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="7"${dash} />
-      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${x}" y="${y}" width="3" height="${NODE_H}" rx="1.5" />
+      <rect class="node-box" x="${x}" y="${y}" width="${width}" height="${height}" rx="7"${dash} />
+      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${x}" y="${y}" width="3" height="${height}" rx="1.5" />
       <text class="node-ref" x="${textX}" y="${y + 19}">${escapeHtml(shortRef(pr))}</text>
       <circle class="${markClass("node-dot", meta)}" style="color:${meta.color}" cx="${textX + 3}" cy="${y + 33}" r="3.5" />
       <text class="node-meta" x="${textX + 12}" y="${y + 36}">${escapeHtml(meta.label)}</text>
       <text class="node-meta" x="${textX}" y="${y + 52}">${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions} · ${pr.changedFiles}f</text>
-      ${nodeBadge(x + NODE_W - 14, y + 14, order)}
+      ${nodeBadge(x + width - 14, y + 14, badge)}
       ${pr.isSpecPR ? `<text class="node-tag" x="${textX}" y="${y - 6}">SPEC</text>` : ""}
     </g>`;
 }
 
-function rowStartX(count, avail) {
-  const rowW = count * NODE_W + (count - 1) * GAP_X;
-  return Math.max(2, Math.round((avail - rowW) / 2));
+function wideDiagram({ busY, nodes }) {
+  const ordered = nodes.some((n) => n.pr.isSpecPR);
+  const busClass = ordered ? "bus" : "bus-dashed";
+  const centers = nodes.map((n) => n.x + n.width / 2);
+  const stems = nodes.map((n, i) => {
+    const cx = centers[i];
+    return n.pr.isSpecPR
+      ? `<line x1="${cx}" y1="${n.y + n.height}" x2="${cx}" y2="${busY}" class="bus" /><circle cx="${cx}" cy="${busY}" r="3" class="bus-dot" />`
+      : `<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${n.y}" class="${busClass}" />`;
+  });
+  const bus = `<line x1="${Math.min(...centers)}" y1="${busY}" x2="${Math.max(...centers)}" y2="${busY}" class="${busClass}" stroke-width="2" />`;
+  return bus + stems.join("") + nodes.map(wideNode).join("");
 }
 
-function wideDiagram(set, avail) {
-  const specs = set.members.filter((m) => m.isSpecPR);
-  const consumers = set.members.filter((m) => !m.isSpecPR);
-
-  const parts = [];
-  const stems = [];
-  const centers = [];
-
-  if (specs.length > 0) {
-    const specY = 12;
-    const busY = specY + NODE_H + GAP_Y / 2;
-    const consY = busY + GAP_Y / 2;
-
-    let x = rowStartX(specs.length, avail);
-    for (const pr of specs) {
-      parts.push(wideNode(pr, x, specY, stepOf(pr)));
-      const cx = x + NODE_W / 2;
-      centers.push(cx);
-      stems.push(`<line x1="${cx}" y1="${specY + NODE_H}" x2="${cx}" y2="${busY}" class="bus" />`);
-      stems.push(`<circle cx="${cx}" cy="${busY}" r="3" class="bus-dot" />`);
-      x += NODE_W + GAP_X;
-    }
-
-    x = rowStartX(consumers.length, avail);
-    for (const pr of consumers) {
-      parts.push(wideNode(pr, x, consY, stepOf(pr)));
-      const cx = x + NODE_W / 2;
-      centers.push(cx);
-      stems.push(`<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${consY}" class="bus" />`);
-      x += NODE_W + GAP_X;
-    }
-
-    const bus = `<line x1="${Math.min(...centers)}" y1="${busY}" x2="${Math.max(...centers)}" y2="${busY}" class="bus" stroke-width="2" />`;
-    return { svg: bus + stems.join("") + parts.join(""), height: consY + NODE_H + 6 };
-  }
-
-  const busY = 14;
-  const rowY = busY + GAP_Y / 2;
-  let x = rowStartX(set.members.length, avail);
-  for (const pr of set.members) {
-    parts.push(wideNode(pr, x, rowY, "?"));
-    const cx = x + NODE_W / 2;
-    centers.push(cx);
-    stems.push(`<line x1="${cx}" y1="${busY}" x2="${cx}" y2="${rowY}" class="bus-dashed" />`);
-    x += NODE_W + GAP_X;
-  }
-  const bus = `<line x1="${Math.min(...centers)}" y1="${busY}" x2="${Math.max(...centers)}" y2="${busY}" class="bus-dashed" stroke-width="2" />`;
-  return { svg: bus + stems.join("") + parts.join(""), height: rowY + NODE_H + 6 };
-}
-
-function verticalNode(pr, y, avail, order) {
+function verticalNode({ pr, x, y, width, height, badge }) {
   const meta = statusMeta(pr.status);
   const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
-  const w = avail - V_NODE_X - 2;
   return `
     <g class="node-g" data-pr-key="${escapeHtml(pr.key)}">
-      <rect class="node-box" x="${V_NODE_X}" y="${y}" width="${w}" height="${V_NODE_H}" rx="6"${dash} />
-      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${V_NODE_X}" y="${y}" width="3" height="${V_NODE_H}" rx="1.5" />
-      <text class="node-ref" x="${V_NODE_X + 12}" y="${y + 14}">${escapeHtml(shortRef(pr))}</text>
-      <text class="node-meta" x="${V_NODE_X + 12}" y="${y + 27}">${escapeHtml(meta.label)} · ${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions}</text>
-      <line x1="${V_BUS_X}" y1="${y + V_NODE_H / 2}" x2="${V_NODE_X}" y2="${y + V_NODE_H / 2}" class="bus" />
-      ${nodeBadge(V_BUS_X, y + V_NODE_H / 2, order)}
+      <rect class="node-box" x="${x}" y="${y}" width="${width}" height="${height}" rx="6"${dash} />
+      <rect class="${markClass("node-rail", meta)}" style="color:${meta.color}" x="${x}" y="${y}" width="3" height="${height}" rx="1.5" />
+      <text class="node-ref" x="${x + 12}" y="${y + 14}">${escapeHtml(shortRef(pr))}</text>
+      <text class="node-meta" x="${x + 12}" y="${y + 27}">${escapeHtml(meta.label)} · ${escapeHtml(shortAge(pr.createdAt))} · +${pr.additions}/−${pr.deletions}</text>
+      <line x1="${V_BUS_X}" y1="${y + height / 2}" x2="${x}" y2="${y + height / 2}" class="bus" />
+      ${nodeBadge(V_BUS_X, y + height / 2, badge)}
     </g>`;
 }
 
-function verticalDiagram(set, avail) {
-  let y = 6;
-  const nodes = set.members.map((pr) => {
-    const node = verticalNode(pr, y, avail, stepOf(pr));
-    y += V_NODE_H + V_GAP;
-    return node;
-  });
-  const height = y - V_GAP + 6;
+function verticalDiagram(set, { nodes }) {
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
   const busClass = set.mergeOrderKnown ? "bus" : "bus-dashed";
-  const bus = `<line x1="${V_BUS_X}" y1="${6 + V_NODE_H / 2}" x2="${V_BUS_X}" y2="${height - 6 - V_NODE_H / 2}" class="${busClass}" stroke-width="2" />`;
-  return { svg: bus + nodes.join(""), height };
+  const bus = `<line x1="${V_BUS_X}" y1="${first.y + first.height / 2}" x2="${V_BUS_X}" y2="${last.y + last.height / 2}" class="${busClass}" stroke-width="2" />`;
+  return bus + nodes.map(verticalNode).join("");
 }
 
 function setDiagram(set, avail) {
   const specs = set.members.filter((m) => m.isSpecPR);
   const consumers = set.members.filter((m) => !m.isSpecPR);
-  const perRow = Math.max(1, Math.floor((avail + GAP_X) / (NODE_W + GAP_X)));
-  const fitsWide = avail >= 480 && specs.length <= perRow && consumers.length <= perRow && set.members.length <= perRow * 2;
-
-  const { svg, height } = fitsWide ? wideDiagram(set, avail) : verticalDiagram(set, avail);
+  const layout = diagramLayout(set, avail);
+  const svg = layout.orientation === "wide" ? wideDiagram(layout) : verticalDiagram(set, layout);
+  const { height } = layout;
 
   const caption = set.mergeOrderKnown
     ? `step 1: ${plural(specs.length, "spec PR", "spec PRs")} → step 2: ${plural(consumers.length, "consumer", "consumers")} · any order within a step`
@@ -878,24 +771,6 @@ function renderDrawer() {
 
 let settingsOpen = false;
 
-function previewSpecMatch(pr, rule) {
-  if (rule.useRepoSuffix) {
-    const repo = pr.repoName.toLowerCase();
-    if (rule.repoSuffixes.some((sfx) => repo.endsWith(sfx))) return true;
-  }
-  if (rule.useFileKeywords && rule.fileKeywords.length > 0) {
-    return pr.changedFilePaths.some((path) => {
-      const lower = path.toLowerCase();
-      return rule.fileKeywords.some((kw) => lower.includes(kw));
-    });
-  }
-  return false;
-}
-
-function splitWords(text) {
-  return [...new Set(text.split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
-}
-
 // The drawer is one form. Nothing in it takes effect until Save — the theme included, even
 // though it is stored in the browser — so every section has the same contract. Reset fills the
 // form with the defaults and still needs a Save.
@@ -924,10 +799,6 @@ function fillSettingsForm({ theme, notify, specRule }) {
   document.getElementById("rule-files-on").checked = specRule.useFileKeywords;
   document.getElementById("rule-keywords").value = specRule.fileKeywords.join(", ");
   updateSettingsForm();
-}
-
-function sameSettings(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 // Re-derives everything that depends on the form's current values: the theme segment highlight,
