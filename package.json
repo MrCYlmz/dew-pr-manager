@@ -14,10 +14,13 @@
     "bun": "latest"
   },
   "scripts": {
-    "dev": "bun --watch src/server.ts",
-    "start": "bun src/server.ts",
+    "build": "bun build client/app.ts --target browser --outfile public/app.js",
+    "dev": "bun run --parallel dev:client dev:server",
+    "dev:client": "bun run build --watch",
+    "dev:server": "bun --watch src/server.ts",
+    "start": "bun run build && bun src/server.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p client"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

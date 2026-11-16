@@ -2,6 +2,9 @@ node_modules/
 data/
 *.log
 
+# built by bun run build from client/
+public/app.js
+
 # editors
 .idea/
 *.iml

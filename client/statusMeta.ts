@@ -1,4 +1,13 @@
-export const STATUS_META = {
+import type { Status } from "../src/types.ts";
+
+export interface StatusMeta {
+  label: string;
+  color: string;
+  icon: string;
+  hollow?: boolean;
+}
+
+export const STATUS_META: Record<Status, StatusMeta> = {
   // Colour is per action class (see the token comment in styles.css): statuses that share a
   // class share a hue and are told apart by icon + label. DRAFT is hollow: an outline, not a
   // fill, so its grey never competes with the chromatic steps.
@@ -12,8 +21,12 @@ export const STATUS_META = {
   NEEDS_REVIEW: { label: "Needs review", color: "var(--cls-info)", icon: "eye" },
 };
 
-export const STATUS_ORDER = Object.keys(STATUS_META);
+export const STATUS_ORDER: readonly Status[] = Object.keys(STATUS_META).filter(isStatus);
 
-export function statusMeta(status) {
-  return STATUS_META[status] ?? { label: status, color: "var(--ink-muted)", icon: "alertCircle" };
+function isStatus(status: string): status is Status {
+  return Object.hasOwn(STATUS_META, status);
+}
+
+export function statusMeta(status: string): StatusMeta {
+  return isStatus(status) ? STATUS_META[status] : { label: status, color: "var(--ink-muted)", icon: "alertCircle" };
 }

@@ -1,3 +1,5 @@
+import type { ChangeSet, DerivedPullRequest } from "../src/types.ts";
+
 export const NODE_W = 216;
 export const NODE_H = 62;
 export const GAP_X = 18;
@@ -9,16 +11,35 @@ export const V_GAP = 9;
 export const V_BUS_X = 14;
 export const V_NODE_X = 30;
 
-export function stepOf(pr) {
+export interface NodeBox {
+  prKey: string;
+  pr: DerivedPullRequest;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Text of the merge-step badge: "1", "2" or "?". */
+  badge: string;
+}
+
+export interface DiagramLayout {
+  orientation: "wide" | "vertical";
+  height: number;
+  nodes: NodeBox[];
+  /** The y of the horizontal bus, wide layout only. */
+  busY?: number;
+}
+
+export function stepOf(pr: Pick<DerivedPullRequest, "mergeStep">): string {
   return pr.mergeStep == null ? "?" : String(pr.mergeStep);
 }
 
-export function rowStartX(count, avail) {
+export function rowStartX(count: number, avail: number): number {
   const rowW = count * NODE_W + (count - 1) * GAP_X;
   return Math.max(2, Math.round((avail - rowW) / 2));
 }
 
-function wideRow(prs, y, avail, badge) {
+function wideRow(prs: DerivedPullRequest[], y: number, avail: number, badge: (pr: DerivedPullRequest) => string): NodeBox[] {
   const x0 = rowStartX(prs.length, avail);
   return prs.map((pr, i) => ({
     prKey: pr.key,
@@ -31,7 +52,7 @@ function wideRow(prs, y, avail, badge) {
   }));
 }
 
-function wideLayout(set, specs, consumers, avail) {
+function wideLayout(set: ChangeSet, specs: DerivedPullRequest[], consumers: DerivedPullRequest[], avail: number): DiagramLayout {
   if (specs.length > 0) {
     const specY = 12;
     const busY = specY + NODE_H + GAP_Y / 2;
@@ -46,9 +67,9 @@ function wideLayout(set, specs, consumers, avail) {
   return { orientation: "wide", height: rowY + NODE_H + 6, busY, nodes };
 }
 
-function verticalLayout(set, avail) {
+function verticalLayout(set: ChangeSet, avail: number): DiagramLayout {
   let y = 6;
-  const nodes = set.members.map((pr) => {
+  const nodes = set.members.map((pr): NodeBox => {
     const node = { prKey: pr.key, pr, x: V_NODE_X, y, width: avail - V_NODE_X - 2, height: V_NODE_H, badge: stepOf(pr) };
     y += V_NODE_H + V_GAP;
     return node;
@@ -56,7 +77,7 @@ function verticalLayout(set, avail) {
   return { orientation: "vertical", height: y - V_GAP + 6, nodes };
 }
 
-export function diagramLayout(set, avail) {
+export function diagramLayout(set: ChangeSet, avail: number): DiagramLayout {
   const specs = set.members.filter((m) => m.isSpecPR);
   const consumers = set.members.filter((m) => !m.isSpecPR);
   const perRow = Math.max(1, Math.floor((avail + GAP_X) / (NODE_W + GAP_X)));

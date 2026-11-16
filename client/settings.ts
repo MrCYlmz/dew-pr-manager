@@ -1,4 +1,12 @@
-export function previewSpecMatch(pr, rule) {
+import type { PullRequestFacts, SpecRule } from "../src/types.ts";
+
+export interface Settings {
+  theme: string;
+  notify: boolean;
+  specRule: SpecRule;
+}
+
+export function previewSpecMatch(pr: Pick<PullRequestFacts, "repoName" | "changedFilePaths">, rule: SpecRule): boolean {
   if (rule.useRepoSuffix) {
     const repo = pr.repoName.toLowerCase();
     if (rule.repoSuffixes.some((sfx) => repo.endsWith(sfx))) return true;
@@ -12,10 +20,10 @@ export function previewSpecMatch(pr, rule) {
   return false;
 }
 
-export function splitWords(text) {
+export function splitWords(text: string): string[] {
   return [...new Set(text.split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
 }
 
-export function sameSettings(a, b) {
+export function sameSettings(a: Settings, b: Settings): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
