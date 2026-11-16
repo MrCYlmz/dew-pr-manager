@@ -1,17 +1,10 @@
-import type { AppState, Bucket, ChangeSet, DerivedPullRequest, HistoryEvent, Owner, ScanMeta, SpecRule } from "../src/types.ts";
+import type { Bucket, ChangeSet, DerivedPullRequest, HistoryEvent, Owner } from "../src/types.ts";
 import { diagramLayout, stepOf, V_BUS_X, type DiagramLayout, type NodeBox } from "./connectionsLayout.ts";
 import { escapeHtml, html, raw } from "./html.ts";
 import { previewSpecMatch, sameSettings, splitWords, type Settings } from "./settings.ts";
+import { isStatePayload, type StatePayload } from "./statePayload.ts";
 import { statusMeta, type StatusMeta } from "./statusMeta.ts";
 import { countForView, setMatchesView, type View } from "./views.ts";
-
-// What every /api route answers with (currentStatePayload in src/server.ts): AppState plus the
-// scan flag and the setting defaults, with meta null until the first scan has finished.
-type StatePayload = Omit<AppState, "meta"> & {
-  meta: ScanMeta | null;
-  scanning: boolean;
-  defaults: { notify: boolean; specRule: SpecRule };
-};
 
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
@@ -153,9 +146,23 @@ function setTheme(key: string) {
   return theme;
 }
 
+// Every /api route answers with the state payload. A network failure, a non-OK status or any
+// other body gives null, so callers keep the last good state instead of rendering a broken one.
+async function requestState(path: string, init?: RequestInit): Promise<StatePayload | null> {
+  try {
+    const res = await fetch(path, init);
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    return isStatePayload(body) ? body : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchState({ skipDrawer = false }: { skipDrawer?: boolean } = {}) {
-  const res = await fetch("/api/state");
-  appState = await res.json();
+  const state = await requestState("/api/state");
+  if (!state) return;
+  appState = state;
   render({ skipDrawer });
 }
 
@@ -164,9 +171,11 @@ async function refresh() {
   els.refreshLabel.textContent = "Scanning…";
   els.shell.classList.add("is-refetching");
   try {
-    const res = await fetch("/api/refresh", { method: "POST" });
-    appState = await res.json();
-    render({ skipDrawer: drawerPrKey != null });
+    const state = await requestState("/api/refresh", { method: "POST" });
+    if (state) {
+      appState = state;
+      render({ skipDrawer: drawerPrKey != null });
+    }
   } finally {
     els.refreshBtn.disabled = false;
     els.refreshLabel.textContent = "Refresh";
@@ -592,28 +601,32 @@ function scheduleNoteSave(prKey: string, text: string, hintEl: HTMLElement) {
   clearTimeout(noteSaveTimer);
   hintEl.textContent = "Saving…";
   noteSaveTimer = setTimeout(async () => {
-    const res = await fetch(`/api/notes/${encodeURIComponent(prKey)}`, {
+    const state = await requestState(`/api/notes/${encodeURIComponent(prKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    appState = await res.json();
+    if (!state) {
+      hintEl.textContent = "Could not save note.";
+      return;
+    }
+    appState = state;
     hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
     render({ skipDrawer: true });
   }, 800);
 }
 
 async function handleLinkChange(prKey: string, value: string) {
-  if (value === "__branch__") {
-    await fetch(`/api/links/${encodeURIComponent(prKey)}`, { method: "DELETE" });
-  } else {
-    await fetch("/api/links", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prKey, targetSetKey: value }),
-    });
-  }
-  await fetchState();
+  const state = value === "__branch__"
+    ? await requestState(`/api/links/${encodeURIComponent(prKey)}`, { method: "DELETE" })
+    : await requestState("/api/links", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prKey, targetSetKey: value }),
+      });
+  if (state) appState = state;
+  // On failure too: re-rendering from the last good state puts the link picker back on the saved set.
+  render();
 }
 
 const CHECK_OK = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
@@ -925,12 +938,18 @@ async function saveSettings() {
   hint.dataset.sticky = "1";
   hint.textContent = "Saving…";
   byId("settings-save", HTMLButtonElement).disabled = true;
-  const res = await fetch("/api/settings", {
+  const state = await requestState("/api/settings", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ notify: form.notify, specRule: form.specRule }),
   });
-  appState = await res.json();
+  if (!state) {
+    hint.textContent = "Could not save settings.";
+    byId("settings-save", HTMLButtonElement).disabled = false;
+    setTimeout(() => { delete hint.dataset.sticky; if (settingsOpen) updateSettingsForm(); }, 2500);
+    return;
+  }
+  appState = state;
   setTheme(form.theme);
   render({ skipDrawer: true });
   renderSettings();
