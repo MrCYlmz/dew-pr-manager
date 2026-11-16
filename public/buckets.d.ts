@@ -11,5 +11,4 @@ export interface Bucket {
 
 export const BUCKETS: readonly Bucket[];
 
-// Every owner has a bucket, so every change set lands in one.
 export function bucketFor(set: ChangeSet): Bucket;
