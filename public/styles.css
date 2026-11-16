@@ -517,7 +517,6 @@ a:focus-visible {
 
 /* ----------------------------------------------------------------- changes */
 
-/* A fixed height, empty or full, so the panel never pushes the page apart; only the rows scroll. */
 .changes-panel { height: 420px; display: flex; flex-direction: column; }
 .changes-panel .panel-body { flex: 1; min-height: 0; overflow-y: auto; }
 
