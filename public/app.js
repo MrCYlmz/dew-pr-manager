@@ -321,27 +321,22 @@ function setCard(set) {
 }
 
 const BUCKETS = [
-  { key: "bot", rank: 5, title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot", match: (s) => s.members.every((m) => m.authorIsBot) },
-  { key: "ready", rank: 1, title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle", match: (s) => s.status === "READY_TO_MERGE" },
-  { key: "draft", rank: 4, title: "Drafts", desc: "Not ready for review yet.", icon: "edit", match: (s) => s.status === "DRAFT" },
-  { key: "rotting", rank: 2, title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock", match: (s) => s.status === "STALE" },
-  { key: "you", rank: 0, title: "Waiting on you", desc: "The next move is yours.", icon: "user", match: (s) => s.owner === "you" },
-  { key: "reviewers", rank: 3, title: "Waiting on reviewers", desc: "Sitting with someone else for now.", icon: "users", match: (s) => s.owner === "reviewers" },
+  { key: "you", title: "Waiting on you", desc: "The next move is yours.", icon: "user" },
+  { key: "ready", title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle" },
+  { key: "rotting", title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock" },
+  { key: "reviewers", title: "Waiting on reviewers", desc: "Sitting with someone else for now.", icon: "users" },
+  { key: "author", title: "Waiting on the author", desc: "PRs you review, blocked until their author acts.", icon: "cornerUpLeft" },
+  { key: "draft", title: "Drafts", desc: "Not ready for review yet.", icon: "edit" },
+  { key: "bot", title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot" },
 ];
-
-function bucketFor(set) {
-  return BUCKETS.find((b) => b.match(set)) ?? null;
-}
 
 function renderBuckets(sets) {
   const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
   for (const set of sets) {
-    const bucket = bucketFor(set);
-    if (bucket) grouped.get(bucket.key).push(set);
+    grouped.get(set.bucket).push(set);
   }
 
-  const sections = [...BUCKETS]
-    .sort((a, b) => a.rank - b.rank)
+  const sections = BUCKETS
     .filter((b) => grouped.get(b.key).length > 0)
     .map((b) => {
       const list = grouped.get(b.key);
