@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { BUCKETS, bucketFor } from "../public/buckets.js";
-import type { Owner, Status } from "../src/types.ts";
+import { deriveBucket } from "../src/domain/buckets.ts";
+import type { Bucket, Owner, Status } from "../src/types.ts";
 import { makeChangeSet, makeDerived } from "./helpers.ts";
 
 const STATUSES: Status[] = [
@@ -14,16 +14,17 @@ const STATUSES: Status[] = [
   "NEEDS_REVIEW",
 ];
 const OWNERS: Owner[] = ["you", "author", "reviewers"];
+const BUCKET_KEYS: Bucket[] = ["you", "ready", "rotting", "reviewers", "author", "draft", "bot"];
 
-const STATUS_BUCKET: Partial<Record<Status, string>> = {
-  READY_TO_MERGE: "Ready to merge",
-  DRAFT: "Drafts",
-  STALE: "Rotting",
+const STATUS_BUCKET: Partial<Record<Status, Bucket>> = {
+  READY_TO_MERGE: "ready",
+  DRAFT: "draft",
+  STALE: "rotting",
 };
-const OWNER_BUCKET: Record<Owner, string> = {
-  you: "Waiting on you",
-  reviewers: "Waiting on reviewers",
-  author: "Waiting on the author",
+const OWNER_BUCKET: Record<Owner, Bucket> = {
+  you: "you",
+  reviewers: "reviewers",
+  author: "author",
 };
 
 function setOf(status: Status, owner: Owner, { bot = false, size = 1 } = {}) {
@@ -44,40 +45,14 @@ function setOf(status: Status, owner: Owner, { bot = false, size = 1 } = {}) {
   return makeChangeSet({ members, status, owner });
 }
 
-function titleFor(set: ReturnType<typeof setOf>) {
-  return bucketFor(set)?.title;
-}
-
-describe("bucket list", () => {
-  test("lists seven buckets in page order with waiting on the author after waiting on reviewers", () => {
-    const titles = [...BUCKETS].sort((a, b) => a.rank - b.rank).map((b) => b.title);
-    expect(titles).toEqual([
-      "Waiting on you",
-      "Ready to merge",
-      "Rotting",
-      "Waiting on reviewers",
-      "Waiting on the author",
-      "Drafts",
-      "Bot PRs",
-    ]);
-  });
-
-  test("every bucket has a one-line description", () => {
-    for (const bucket of BUCKETS) {
-      expect(bucket.desc.trim().length).toBeGreaterThan(0);
-      expect(bucket.desc).not.toContain("\n");
-    }
-  });
-});
-
 describe("waiting on the author", () => {
   for (const status of ["CHANGES_REQUESTED", "CI_FAILING", "CONFLICTED"] as const) {
     test(`a single ${status} PR owned by its author lands in waiting on the author`, () => {
-      expect(titleFor(setOf(status, "author"))).toBe("Waiting on the author");
+      expect(deriveBucket(setOf(status, "author"))).toBe("author");
     });
 
     test(`a multi-PR ${status} set owned by its author lands in waiting on the author`, () => {
-      expect(titleFor(setOf(status, "author", { size: 3 }))).toBe("Waiting on the author");
+      expect(deriveBucket(setOf(status, "author", { size: 3 }))).toBe("author");
     });
   }
 
@@ -89,55 +64,81 @@ describe("waiting on the author", () => {
       owner: "author",
     });
     const set = makeChangeSet({ members: [pr], status: "CHANGES_REQUESTED", owner: "author" });
-    expect(titleFor(set)).toBe("Waiting on the author");
+    expect(deriveBucket(set)).toBe("author");
+  });
+});
+
+describe("waiting on you and waiting on reviewers", () => {
+  test("a set you must act on lands in waiting on you", () => {
+    expect(deriveBucket(setOf("NEEDS_REVIEW", "you"))).toBe("you");
+    expect(deriveBucket(setOf("CI_FAILING", "you"))).toBe("you");
+  });
+
+  test("a set waiting for a look by others lands in waiting on reviewers", () => {
+    expect(deriveBucket(setOf("NEEDS_REVIEW", "reviewers"))).toBe("reviewers");
+    expect(deriveBucket(setOf("REVIEW_STALE", "reviewers"))).toBe("reviewers");
   });
 });
 
 describe("bucket precedence", () => {
-  test("bot PRs beats every status and owner", () => {
-    for (const status of STATUSES) {
-      for (const owner of OWNERS) {
-        expect(titleFor(setOf(status, owner, { bot: true }))).toBe("Bot PRs");
-      }
+  for (const status of STATUSES) {
+    for (const owner of OWNERS) {
+      test(`bot PRs beats ${status} owned by ${owner}`, () => {
+        expect(deriveBucket(setOf(status, owner, { bot: true }))).toBe("bot");
+        expect(deriveBucket(setOf(status, owner, { bot: true, size: 2 }))).toBe("bot");
+      });
     }
-  });
+  }
 
   test("a set with a human member is not a bot PR", () => {
     const members = [
-      makeDerived({ key: "acme/a#1", authorIsBot: true, status: "CI_FAILING", owner: "author" }),
+      makeDerived({ key: "acme/a#1", author: "dependabot[bot]", authorIsBot: true, status: "CI_FAILING", owner: "author" }),
       makeDerived({ key: "acme/b#2", authorIsBot: false, status: "CI_FAILING", owner: "author" }),
     ];
     const set = makeChangeSet({ members, status: "CI_FAILING", owner: "author" });
-    expect(titleFor(set)).toBe("Waiting on the author");
+    expect(deriveBucket(set)).toBe("author");
   });
 
-  for (const [status, title] of Object.entries(STATUS_BUCKET)) {
+  test("a mixed set that is ready to merge lands in ready to merge, not bot PRs", () => {
+    const members = [
+      makeDerived({ key: "acme/a#1", author: "dependabot[bot]", authorIsBot: true, status: "READY_TO_MERGE", owner: "you" }),
+      makeDerived({ key: "acme/b#2", authorIsBot: false, status: "READY_TO_MERGE", owner: "you" }),
+    ];
+    const set = makeChangeSet({ members, status: "READY_TO_MERGE", owner: "you" });
+    expect(deriveBucket(set)).toBe("ready");
+  });
+
+  for (const [status, bucket] of Object.entries(STATUS_BUCKET)) {
     for (const owner of OWNERS) {
-      test(`${title.toLowerCase()} beats waiting on ${owner === "you" ? "you" : `the ${owner}`}`, () => {
-        expect(titleFor(setOf(status as Status, owner))).toBe(title);
+      test(`${bucket} beats waiting on ${owner}`, () => {
+        expect(deriveBucket(setOf(status as Status, owner))).toBe(bucket);
       });
     }
   }
 });
 
 describe("every change set lands in exactly one bucket", () => {
-  test("every combination of status and owner maps to exactly one bucket", () => {
+  test("every combination of status and owner, with and without bot members, maps to the bucket the spec's precedence names", () => {
     for (const status of STATUSES) {
       for (const owner of OWNERS) {
-        for (const size of [1, 2]) {
-          const set = setOf(status, owner, { size });
-          const bucket = bucketFor(set);
-          expect(bucket).toBeDefined();
-          expect(bucket).not.toBeNull();
-          expect(BUCKETS.filter((b) => b === bucket)).toHaveLength(1);
-          expect(bucket?.title).toBe(STATUS_BUCKET[status] ?? OWNER_BUCKET[owner]);
+        for (const bot of [false, true]) {
+          for (const size of [1, 2]) {
+            const expected = bot ? "bot" : (STATUS_BUCKET[status] ?? OWNER_BUCKET[owner]);
+            const bucket = deriveBucket(setOf(status, owner, { bot, size }));
+            expect(BUCKET_KEYS).toContain(bucket);
+            expect(bucket).toBe(expected);
+          }
         }
       }
     }
   });
 
-  test("bucket titles are unique", () => {
-    const titles = BUCKETS.map((b) => b.title);
-    expect(new Set(titles).size).toBe(titles.length);
+  test("the bucket follows the set's status and owner, not a member's", () => {
+    const members = [
+      makeDerived({ key: "acme/a#1", status: "READY_TO_MERGE", owner: "you" }),
+      makeDerived({ key: "acme/b#2", status: "CI_FAILING", owner: "author" }),
+    ];
+    const set = makeChangeSet({ members, status: "CI_FAILING", owner: "author" });
+    expect(deriveBucket(set)).toBe("author");
   });
 });

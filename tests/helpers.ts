@@ -59,6 +59,7 @@ export function makeChangeSet(overrides: Partial<ChangeSet> = {}): ChangeSet {
     members,
     status: members[0].status,
     owner: members[0].owner,
+    bucket: "reviewers",
     mergeOrderKnown: false,
     hasManualLink: false,
     ...overrides,
