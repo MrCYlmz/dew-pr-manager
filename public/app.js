@@ -1,5 +1,3 @@
-import { BUCKETS, bucketFor } from "./buckets.js";
-
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
 
@@ -367,14 +365,23 @@ function setCard(set) {
   </div>`;
 }
 
+const BUCKETS = [
+  { key: "you", title: "Waiting on you", desc: "The next move is yours.", icon: "user" },
+  { key: "ready", title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle" },
+  { key: "rotting", title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock" },
+  { key: "reviewers", title: "Waiting on reviewers", desc: "Sitting with someone else for now.", icon: "users" },
+  { key: "author", title: "Waiting on the author", desc: "PRs you review, blocked until their author acts.", icon: "cornerUpLeft" },
+  { key: "draft", title: "Drafts", desc: "Not ready for review yet.", icon: "edit" },
+  { key: "bot", title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot" },
+];
+
 function renderBuckets(sets) {
   const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
   for (const set of sets) {
-    grouped.get(bucketFor(set).key).push(set);
+    grouped.get(set.bucket).push(set);
   }
 
-  const sections = [...BUCKETS]
-    .sort((a, b) => a.rank - b.rank)
+  const sections = BUCKETS
     .filter((b) => grouped.get(b.key).length > 0)
     .map((b) => {
       const list = grouped.get(b.key);

@@ -10,6 +10,8 @@ export type Status =
 
 export type Owner = "you" | "author" | "reviewers";
 
+export type Bucket = "you" | "ready" | "rotting" | "reviewers" | "author" | "draft" | "bot";
+
 export type MergeableState = "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 
 export type ReviewDecision = "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
@@ -77,6 +79,7 @@ export interface ChangeSet {
   members: DerivedPullRequest[];
   status: Status;
   owner: Owner;
+  bucket: Bucket;
   mergeOrderKnown: boolean;
   hasManualLink: boolean;
 }

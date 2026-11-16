@@ -1,4 +1,5 @@
 import { DEFAULT_SPEC_RULE } from "../config.ts";
+import { deriveBucket } from "./buckets.ts";
 import { STATUS_PRECEDENCE } from "./status.ts";
 import type { ChangeSet, DerivedPullRequest, PullRequestFacts, SpecRule, Status } from "../types.ts";
 
@@ -110,12 +111,14 @@ export function groupIntoChangeSets(prs: DerivedPullRequest[]): ChangeSet[] {
   for (const [key, members] of bySetKey) {
     const { ordered, mergeOrderKnown } = orderMergeOrder(members);
     const status = computeSetStatus(ordered);
+    const owner = computeSetOwner(ordered, status);
     sets.push({
       key,
       label: extractSetLabel(key),
       members: ordered,
       status,
-      owner: computeSetOwner(ordered, status),
+      owner,
+      bucket: deriveBucket({ members: ordered, status, owner }),
       mergeOrderKnown,
       hasManualLink: ordered.some((m) => m.manuallyLinked),
     });
