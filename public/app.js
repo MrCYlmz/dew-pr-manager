@@ -419,7 +419,7 @@ function renderChanges(visibleKeys) {
     .sort((a, b) => (a.at < b.at ? 1 : -1));
 
   if (events.length === 0) {
-    els.changes.innerHTML = html`<section class="panel">
+    els.changes.innerHTML = html`<section class="panel changes-panel">
       <div class="panel-head"><h2 class="panel-title">Changes</h2></div>
       <div class="empty">Nothing has moved since your last visit.</div>
     </section>`;
@@ -446,7 +446,7 @@ function renderChanges(visibleKeys) {
     })
     .join("");
 
-  els.changes.innerHTML = html`<section class="panel">
+  els.changes.innerHTML = html`<section class="panel changes-panel">
     <div class="panel-head">
       <h2 class="panel-title">Changes</h2>
       <span class="panel-count">${events.length}</span>
