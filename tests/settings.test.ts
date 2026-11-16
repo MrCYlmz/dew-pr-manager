@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { previewSpecMatch, sameSettings, splitWords } from "../public/settings.js";
+import { previewSpecMatch, sameSettings, splitWords } from "../client/settings.ts";
 import type { SpecRule } from "../src/types.ts";
 import { makeFacts } from "./helpers.ts";
 

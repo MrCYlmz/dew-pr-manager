@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { PUBLIC_DIR, resolvePublicFile, serveStatic } from "../src/static.ts";
 
@@ -61,5 +62,24 @@ describe("serveStatic", () => {
 
   test("answers 404 for a missing file inside public/", async () => {
     expect((await serveStatic("/nope.html")).status).toBe(404);
+  });
+
+  test("answers 404 for client sources and declarations (S-4 criterion 4)", async () => {
+    for (const module of ["app", "html", "statusMeta", "views", "connectionsLayout", "settings"]) {
+      expect((await serveStatic(`/${module}.ts`)).status).toBe(404);
+      expect((await serveStatic(`/${module}.d.ts`)).status).toBe(404);
+    }
+  });
+
+  test("answers 404 for the client folder reached through public/", async () => {
+    expect((await serveStatic("/../client/app.ts")).status).toBe(404);
+  });
+});
+
+describe("public/ (S-4 criterion 4)", () => {
+  test("holds only what the page loads: index.html, styles.css and the built app.js", async () => {
+    const served = await readdir(PUBLIC_DIR, { recursive: true });
+    const unexpected = served.filter((name) => !["index.html", "styles.css", "app.js"].includes(name));
+    expect(unexpected).toEqual([]);
   });
 });

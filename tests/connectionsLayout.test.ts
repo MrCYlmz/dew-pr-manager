@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { diagramLayout, rowStartX, stepOf, type DiagramLayout, type NodeBox } from "../public/connectionsLayout.js";
+import { diagramLayout, rowStartX, stepOf, type DiagramLayout, type NodeBox } from "../client/connectionsLayout.ts";
 import { makeChangeSet, makeDerived } from "./helpers.ts";
 
 // Expected positions are the pre-story layout (requirements criterion 3: no behaviour change):

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { countForView, setMatchesView } from "../public/views.js";
+import { countForView, setMatchesView } from "../client/views.ts";
 import { makeChangeSet, makeDerived } from "./helpers.ts";
 
 const VIEWER = "me";
