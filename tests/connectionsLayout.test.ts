@@ -3,7 +3,8 @@ import { diagramLayout, rowStartX, stepOf, type DiagramLayout, type NodeBox } fr
 import { makeChangeSet, makeDerived } from "./helpers.ts";
 
 // Expected positions are the pre-story layout (requirements criterion 3: no behaviour change):
-// wide nodes 216 x 62 with 18 between them, vertical nodes 34 high with 9 between them.
+// wide nodes 216 x 62 with 18 between them, vertical nodes 34 high with 9 between them,
+// the bus at y 14 above a single row, or midway in the 26 gap below a spec row at y 12.
 
 function member(n: number, { spec = false } = {}) {
   return makeDerived({
@@ -136,6 +137,49 @@ describe("diagram layout", () => {
     expect(layout.orientation).toBe("wide");
     expectNoOverlap(layout);
     expectInsideDiagram(layout, 480);
+  });
+
+  test("the bus of a set with spec PRs runs midway between the spec row and the consumer row", () => {
+    const layout = diagramLayout(setOf(1, 2), 800);
+    expect(layout.busY).toBe(87);
+    expect(boxOf(layout, 1).y + boxOf(layout, 1).height).toBeLessThan(87);
+    expect(boxOf(layout, 2).y).toBeGreaterThan(87);
+  });
+
+  test("the bus of a set without a spec PR runs above its single row", () => {
+    const layout = diagramLayout(setOf(0, 3), 800);
+    expect(layout.busY).toBe(14);
+    for (const node of layout.nodes) expect(node.y).toBeGreaterThan(14);
+  });
+
+  test("wide nodes of a set with spec PRs show their merge step as badge", () => {
+    const set = makeChangeSet({
+      members: [member(1, { spec: true }), makeDerived({ ...member(2), mergeStep: 2 }), makeDerived({ ...member(3), mergeStep: 2 })],
+      mergeOrderKnown: true,
+    });
+    const layout = diagramLayout(set, 800);
+    expect(layout.orientation).toBe("wide");
+    expect([1, 2, 3].map((n) => boxOf(layout, n).badge)).toEqual(["1", "2", "2"]);
+  });
+
+  test("wide nodes of a set without a spec PR show ? as badge, even with a merge step", () => {
+    const set = makeChangeSet({
+      members: [makeDerived({ ...member(1), mergeStep: 1 }), makeDerived({ ...member(2), mergeStep: 2 })],
+      mergeOrderKnown: false,
+    });
+    const layout = diagramLayout(set, 800);
+    expect(layout.orientation).toBe("wide");
+    expect([1, 2].map((n) => boxOf(layout, n).badge)).toEqual(["?", "?"]);
+  });
+
+  test("vertical nodes show their merge step as badge, or ? when it is unknown", () => {
+    const set = makeChangeSet({
+      members: [member(1, { spec: true }), makeDerived({ ...member(2), mergeStep: 2 }), member(3), member(4), member(5)],
+      mergeOrderKnown: true,
+    });
+    const layout = diagramLayout(set, 800);
+    expect(layout.orientation).toBe("vertical");
+    expect([1, 2, 3, 4, 5].map((n) => boxOf(layout, n).badge)).toEqual(["1", "2", "?", "?", "?"]);
   });
 
   test("nothing is dropped in the vertical layout", () => {
