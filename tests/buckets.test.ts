@@ -15,7 +15,6 @@ const STATUSES: Status[] = [
 ];
 const OWNERS: Owner[] = ["you", "author", "reviewers"];
 
-// Statuses that put a set in a bucket of their own, ahead of any owner bucket.
 const STATUS_BUCKET: Partial<Record<Status, string>> = {
   READY_TO_MERGE: "Ready to merge",
   DRAFT: "Drafts",
