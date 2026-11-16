@@ -1,4 +1,4 @@
-import type { DerivedPullRequest, PullRequestFacts } from "../src/types.ts";
+import type { ChangeSet, DerivedPullRequest, PullRequestFacts } from "../src/types.ts";
 
 export function makeFacts(overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
   return {
@@ -47,6 +47,20 @@ export function makeDerived(overrides: Partial<DerivedPullRequest> = {}): Derive
     manuallyLinked: false,
     mentions: [],
     mergeStep: null,
+    ...overrides,
+  };
+}
+
+export function makeChangeSet(overrides: Partial<ChangeSet> = {}): ChangeSet {
+  const members = overrides.members ?? [makeDerived()];
+  return {
+    key: members[0].setKey,
+    label: members[0].setKey,
+    members,
+    status: members[0].status,
+    owner: members[0].owner,
+    mergeOrderKnown: false,
+    hasManualLink: false,
     ...overrides,
   };
 }
