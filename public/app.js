@@ -1,3 +1,5 @@
+import { BUCKETS, bucketFor } from "./buckets.js";
+
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
 
@@ -365,24 +367,10 @@ function setCard(set) {
   </div>`;
 }
 
-const BUCKETS = [
-  { key: "bot", rank: 5, title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot", match: (s) => s.members.every((m) => m.authorIsBot) },
-  { key: "ready", rank: 1, title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle", match: (s) => s.status === "READY_TO_MERGE" },
-  { key: "draft", rank: 4, title: "Drafts", desc: "Not ready for review yet.", icon: "edit", match: (s) => s.status === "DRAFT" },
-  { key: "rotting", rank: 2, title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock", match: (s) => s.status === "STALE" },
-  { key: "you", rank: 0, title: "Waiting on you", desc: "The next move is yours.", icon: "user", match: (s) => s.owner === "you" },
-  { key: "reviewers", rank: 3, title: "Waiting on reviewers", desc: "Sitting with someone else for now.", icon: "users", match: (s) => s.owner === "reviewers" },
-];
-
-function bucketFor(set) {
-  return BUCKETS.find((b) => b.match(set)) ?? null;
-}
-
 function renderBuckets(sets) {
   const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
   for (const set of sets) {
-    const bucket = bucketFor(set);
-    if (bucket) grouped.get(bucket.key).push(set);
+    grouped.get(bucketFor(set).key).push(set);
   }
 
   const sections = [...BUCKETS]
