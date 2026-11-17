@@ -1,6 +1,7 @@
 import type { Bucket, ChangeSet, DerivedPullRequest, HistoryEvent, Owner } from "../src/types.ts";
 import { diagramLayout, stepOf, V_BUS_X, type DiagramLayout, type NodeBox } from "./connectionsLayout.ts";
 import { escapeHtml, html, raw } from "./html.ts";
+import { drawerNoteText, type UnsavedNote } from "./noteDraft.ts";
 import { previewSpecMatch, sameSettings, splitWords, type Settings } from "./settings.ts";
 import { isStatePayload, type StatePayload } from "./statePayload.ts";
 import { statusMeta, type StatusMeta } from "./statusMeta.ts";
@@ -597,6 +598,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 let noteSaveTimer: number | undefined;
+let unsavedNote: UnsavedNote | null = null;
 function scheduleNoteSave(prKey: string, text: string, hintEl: HTMLElement) {
   clearTimeout(noteSaveTimer);
   hintEl.textContent = "Saving…";
@@ -607,10 +609,12 @@ function scheduleNoteSave(prKey: string, text: string, hintEl: HTMLElement) {
       body: JSON.stringify({ text }),
     });
     if (!state) {
+      unsavedNote = { prKey, text };
       hintEl.textContent = "Could not save note.";
       return;
     }
     appState = state;
+    if (unsavedNote?.prKey === prKey) unsavedNote = null;
     hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
     render({ skipDrawer: true });
   }, 800);
@@ -642,6 +646,10 @@ function renderDrawer() {
 
   const meta = statusMeta(pr.status);
   const note = appState.notes[pr.key];
+  const noteUnsaved = unsavedNote?.prKey === pr.key;
+  const noteHint = noteUnsaved
+    ? "Could not save note."
+    : note ? `Saved ${timeAgo(note.savedAt)}.` : "Saves automatically. Clearing the text deletes the note.";
   const set = appState.sets.find((s) => s.members.some((m) => m.key === pr.key));
 
   const linkOptions = appState.sets
@@ -738,8 +746,8 @@ function renderDrawer() {
 
       <div class="field">
         <label class="field-label" for="note-input">Note</label>
-        <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${raw(escapeHtml(note?.text ?? ""))}</textarea>
-        <div class="field-hint" id="note-hint">${raw(note ? `Saved ${escapeHtml(timeAgo(note.savedAt))}.` : "Saves automatically. Clearing the text deletes the note.")}</div>
+        <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${drawerNoteText(pr.key, appState.notes, unsavedNote)}</textarea>
+        <div class="field-hint" id="note-hint">${noteHint}</div>
       </div>
 
       <div class="field">
