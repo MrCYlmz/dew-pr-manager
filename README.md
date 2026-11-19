@@ -15,14 +15,17 @@ of their consumers.
 
 ## Run it
 
-Requires [Bun](https://bun.sh) 1.3.5 or newer and an already-authenticated [GitHub CLI](https://cli.github.com)
+Requires [Bun](https://bun.sh) 1.4 or newer and an already-authenticated [GitHub CLI](https://cli.github.com)
 (`gh auth status` should show a logged-in account). Nothing else to configure.
 
 ```sh
 bun install
-bun run dev     # auto-restarts on change
-# or: bun start
+bun run dev     # rebuilds the client and restarts the server on change
+# or: bun start  # builds the client once, then starts the server
 ```
+
+The client is TypeScript in `client/`; `bun run build` bundles it into `public/app.js`, which is
+not committed. Both `bun start` and `bun run dev` run that build for you.
 
 Open `http://localhost:4317`. The page loads immediately and says so while the first scan runs;
 it rescans automatically every five minutes, plus a manual refresh button.
@@ -90,11 +93,13 @@ notes, the spec rule) plus a cache.
 ## Tests
 
 ```sh
-bun test        # unit tests for the derivation logic (status, owner, grouping, mentions, history)
-bun run typecheck
+bun test           # unit tests for the derivation logic and the client rule modules
+bun run typecheck  # the server and tests, then the client against its own tsconfig
+bun run build      # bundles client/app.ts into public/app.js
 ```
 
-The derivation logic (`src/domain/*.ts`) is unit tested. The GitHub client (`src/github.ts`) and
+The derivation logic (`src/domain/*.ts`) and the client's rule modules (`client/*.ts` other than
+`app.ts`) are unit tested. The GitHub client (`src/github.ts`) and
 the server/UI are verified by running the app against a real, authenticated `gh` account — there
 isn't a mocked GitHub API in here to test against instead.
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { STATUS_META, STATUS_ORDER, statusMeta } from "../public/statusMeta.js";
+import { STATUS_META, STATUS_ORDER, statusMeta } from "../client/statusMeta.ts";
 import type { Status } from "../src/types.ts";
 
 // The closed vocabulary in FR-2.4, in its precedence order (FR-2.5).

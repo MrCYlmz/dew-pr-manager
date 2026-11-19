@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { escapeHtml, html, raw } from "../public/html.js";
+import { escapeHtml, html, raw } from "../client/html.ts";
 
 describe("escapeHtml", () => {
   test("escapes & < > \" and '", () => {

@@ -1,8 +1,11 @@
-import { diagramLayout, stepOf, V_BUS_X } from "./connectionsLayout.js";
-import { escapeHtml, html, raw } from "./html.js";
-import { previewSpecMatch, sameSettings, splitWords } from "./settings.js";
-import { statusMeta } from "./statusMeta.js";
-import { countForView, setMatchesView } from "./views.js";
+import type { Bucket, ChangeSet, DerivedPullRequest, HistoryEvent, Owner } from "../src/types.ts";
+import { diagramLayout, stepOf, V_BUS_X, type DiagramLayout, type NodeBox } from "./connectionsLayout.ts";
+import { escapeHtml, html, raw } from "./html.ts";
+import { drawerNoteText, type UnsavedNote } from "./noteDraft.ts";
+import { previewSpecMatch, sameSettings, splitWords, type Settings } from "./settings.ts";
+import { isStatePayload, type StatePayload } from "./statePayload.ts";
+import { statusMeta, type StatusMeta } from "./statusMeta.ts";
+import { countForView, setMatchesView, type View } from "./views.ts";
 
 const POLL_MS = 20000;
 const LAST_VISIT_KEY = "prManagerLastVisit";
@@ -10,7 +13,7 @@ const LAST_VISIT_KEY = "prManagerLastVisit";
 const sessionCutoff = localStorage.getItem(LAST_VISIT_KEY);
 localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
 
-const ICON_PATHS = {
+const ICON_PATHS: Record<string, string> = {
   check: "M20 6L9 17l-5-5",
   checkCircle: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3",
   xCircle: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM15 9l-6 6M9 9l6 6",
@@ -38,13 +41,13 @@ const ICON_PATHS = {
   monitor: "M20 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8 21h8M12 17v4",
 };
 
-function icon(name, cls = "") {
+function icon(name: string, cls = ""): string {
   const d = ICON_PATHS[name];
   if (!d) return "";
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 
-function timeAgo(iso) {
+function timeAgo(iso: string | null): string {
   if (!iso) return "unknown";
   const ms = Date.now() - new Date(iso).getTime();
   const days = Math.floor(ms / 86400000);
@@ -55,7 +58,7 @@ function timeAgo(iso) {
   return `${mins}m ago`;
 }
 
-function shortAge(iso) {
+function shortAge(iso: string | null): string {
   if (!iso) return "?";
   const ms = Date.now() - new Date(iso).getTime();
   const days = Math.floor(ms / 86400000);
@@ -65,42 +68,55 @@ function shortAge(iso) {
   return `${Math.max(0, Math.floor(ms / 60000))}m`;
 }
 
-function plural(n, one, many) {
+function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-function shortRef(pr) {
+function shortRef(pr: DerivedPullRequest): string {
   return `${pr.repoName ?? pr.repo}#${pr.number}`;
 }
 
-function shortKey(prKey) {
+function shortKey(prKey: string): string {
   return prKey.includes("/") ? prKey.slice(prKey.indexOf("/") + 1) : prKey;
 }
 
-let appState = null;
-let currentView = new URLSearchParams(location.search).get("view") || "overview";
-let drawerPrKey = null;
+const VIEWS: View[] = ["overview", "mine", "review"];
+
+function viewFrom(value: string | null): View {
+  return VIEWS.find((view) => view === value) ?? "overview";
+}
+
+// The elements index.html and the render functions write; one missing is a broken page, not a state to handle.
+function byId<T extends HTMLElement>(id: string, type: { new (): T; prototype: T }): T {
+  const el = document.getElementById(id);
+  if (!(el instanceof type)) throw new Error(`#${id} is missing or not a ${type.name}`);
+  return el;
+}
+
+let appState: StatePayload | null = null;
+let currentView = viewFrom(new URLSearchParams(location.search).get("view"));
+let drawerPrKey: string | null = null;
 
 const els = {
-  scanMeta: document.getElementById("scan-meta"),
-  errorBanner: document.getElementById("error-banner"),
-  summary: document.getElementById("summary"),
-  changes: document.getElementById("changes-section"),
-  connections: document.getElementById("connections-section"),
-  buckets: document.getElementById("buckets-section"),
-  drawer: document.getElementById("drawer"),
-  scrim: document.getElementById("drawer-scrim"),
-  refreshBtn: document.getElementById("refresh-btn"),
-  refreshIcon: document.getElementById("refresh-icon"),
-  refreshLabel: document.getElementById("refresh-label"),
-  settings: document.getElementById("settings"),
-  settingsBtn: document.getElementById("settings-btn"),
-  tabs: document.getElementById("tabs"),
-  shell: document.getElementById("main"),
+  scanMeta: byId("scan-meta", HTMLElement),
+  errorBanner: byId("error-banner", HTMLElement),
+  summary: byId("summary", HTMLElement),
+  changes: byId("changes-section", HTMLElement),
+  connections: byId("connections-section", HTMLElement),
+  buckets: byId("buckets-section", HTMLElement),
+  drawer: byId("drawer", HTMLElement),
+  scrim: byId("drawer-scrim", HTMLElement),
+  refreshBtn: byId("refresh-btn", HTMLButtonElement),
+  refreshIcon: byId("refresh-icon", HTMLElement),
+  refreshLabel: byId("refresh-label", HTMLElement),
+  settings: byId("settings", HTMLElement),
+  settingsBtn: byId("settings-btn", HTMLButtonElement),
+  tabs: byId("tabs", HTMLElement),
+  shell: byId("main", HTMLElement),
 };
 
 els.refreshIcon.innerHTML = icon("rotateCw");
-document.getElementById("settings-icon").innerHTML = icon("sliders");
+byId("settings-icon", HTMLElement).innerHTML = icon("sliders");
 
 // Theme: a per-browser preference in localStorage, never sent to the server — the spec-PR rule
 // is still the only setting the server persists. "auto" means no data-theme attribute, so the OS
@@ -112,13 +128,16 @@ const THEMES = [
   { key: "light", label: "Light", icon: "sun", hint: "Always light." },
   { key: "dark", label: "Dark", icon: "moon", hint: "Always dark." },
 ];
+function themeFor(key: string | null) {
+  return THEMES.find((t) => t.key === key) ?? THEMES[0];
+}
 function currentTheme() {
   let key = null;
   try { key = localStorage.getItem(THEME_KEY); } catch {}
-  return THEMES.find((t) => t.key === key) ?? THEMES[0];
+  return themeFor(key);
 }
-function setTheme(key) {
-  const theme = THEMES.find((t) => t.key === key) ?? THEMES[0];
+function setTheme(key: string) {
+  const theme = themeFor(key);
   try {
     if (theme.key === "auto") localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, theme.key);
@@ -128,9 +147,23 @@ function setTheme(key) {
   return theme;
 }
 
-async function fetchState({ skipDrawer = false } = {}) {
-  const res = await fetch("/api/state");
-  appState = await res.json();
+// Every /api route answers with the state payload. A network failure, a non-OK status or any
+// other body gives null, so callers keep the last good state instead of rendering a broken one.
+async function requestState(path: string, init?: RequestInit): Promise<StatePayload | null> {
+  try {
+    const res = await fetch(path, init);
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    return isStatePayload(body) ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchState({ skipDrawer = false }: { skipDrawer?: boolean } = {}) {
+  const state = await requestState("/api/state");
+  if (!state) return;
+  appState = state;
   render({ skipDrawer });
 }
 
@@ -139,9 +172,11 @@ async function refresh() {
   els.refreshLabel.textContent = "Scanning…";
   els.shell.classList.add("is-refetching");
   try {
-    const res = await fetch("/api/refresh", { method: "POST" });
-    appState = await res.json();
-    render({ skipDrawer: drawerPrKey != null });
+    const state = await requestState("/api/refresh", { method: "POST" });
+    if (state) {
+      appState = state;
+      render({ skipDrawer: drawerPrKey != null });
+    }
   } finally {
     els.refreshBtn.disabled = false;
     els.refreshLabel.textContent = "Refresh";
@@ -152,9 +187,9 @@ async function refresh() {
 els.refreshBtn.addEventListener("click", refresh);
 
 els.tabs.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-view]");
+  const btn = e.target instanceof Element ? e.target.closest("[data-view]") : null;
   if (!btn) return;
-  currentView = btn.dataset.view;
+  currentView = viewFrom(btn.getAttribute("data-view"));
   const url = new URL(location.href);
   url.searchParams.set("view", currentView);
   history.pushState({}, "", url);
@@ -162,7 +197,7 @@ els.tabs.addEventListener("click", (e) => {
 });
 
 window.addEventListener("popstate", () => {
-  currentView = new URLSearchParams(location.search).get("view") || "overview";
+  currentView = viewFrom(new URLSearchParams(location.search).get("view"));
   render();
 });
 
@@ -172,7 +207,7 @@ function visibleSets() {
   return appState.sets.filter((s) => setMatchesView(s, currentView, viewerLogin));
 }
 
-function render({ skipDrawer = false } = {}) {
+function render({ skipDrawer = false }: { skipDrawer?: boolean } = {}) {
   renderHeader();
   renderTabs();
   if (!appState) return;
@@ -187,7 +222,7 @@ function render({ skipDrawer = false } = {}) {
   const prs = sets.flatMap((s) => s.members);
   renderSummary(sets, prs);
   renderBuckets(sets);
-  renderChanges(new Set(prs.map((p) => p.key)));
+  renderChanges(appState.history, new Set(prs.map((p) => p.key)));
   renderConnections(sets);
   if (!skipDrawer) renderDrawer();
 }
@@ -230,14 +265,14 @@ function renderHeader() {
 
 function renderTabs() {
   for (const btn of els.tabs.querySelectorAll("[data-view]")) {
-    btn.classList.toggle("is-active", btn.dataset.view === currentView);
+    btn.classList.toggle("is-active", btn.getAttribute("data-view") === currentView);
   }
-  for (const [view, id] of [["overview", "count-overview"], ["mine", "count-mine"], ["review", "count-review"]]) {
-    document.getElementById(id).textContent = appState?.meta ? countForView(appState, view, appState.meta.ranAs ?? null) : "";
+  for (const view of VIEWS) {
+    byId(`count-${view}`, HTMLElement).textContent = appState?.meta ? String(countForView(appState, view, appState.meta.ranAs ?? null)) : "";
   }
 }
 
-function renderSummary(sets, prs) {
+function renderSummary(sets: ChangeSet[], prs: DerivedPullRequest[]) {
   const ready = sets.filter((s) => s.status === "READY_TO_MERGE").length;
   const rotting = sets.filter((s) => s.status === "STALE").length;
   const blocked = sets.filter((s) => ["CONFLICTED", "CI_FAILING", "CHANGES_REQUESTED"].includes(s.status)).length;
@@ -258,25 +293,25 @@ function renderSummary(sets, prs) {
     </div>`;
 }
 
-function swatch(meta) {
+function swatch(meta: StatusMeta): string {
   return meta.hollow
     ? `<span class="swatch swatch-hollow" style="color:${meta.color}"></span>`
     : `<span class="swatch" style="background:${meta.color}"></span>`;
 }
 
 // Class list for an SVG status mark (.node-rail / .node-dot); the CSS turns hollow into an outline.
-function markClass(base, meta) {
+function markClass(base: string, meta: StatusMeta): string {
   return meta.hollow ? `${base} is-hollow` : base;
 }
 
-function statusChip(status) {
+function statusChip(status: string): string {
   const meta = statusMeta(status);
   return html`<span class="chip chip-status">${raw(swatch(meta))}${meta.label}</span>`;
 }
 
-function prRow(pr) {
+function prRow(pr: DerivedPullRequest): string {
   const meta = statusMeta(pr.status);
-  const note = appState.notes[pr.key];
+  const note = appState?.notes[pr.key];
   const flags = [
     pr.authorIsBot ? html`<span class="chip chip-bot">bot</span>` : "",
     pr.manuallyLinked ? html`<span class="chip chip-linked">linked</span>` : "",
@@ -298,7 +333,7 @@ function prRow(pr) {
   </button>`;
 }
 
-function setCard(set) {
+function setCard(set: ChangeSet): string {
   const meta = statusMeta(set.status);
   const orderNote = set.mergeOrderKnown
     ? html`${raw(icon("zap"))}Merge the spec PR${raw(set.members.filter((m) => m.isSpecPR).length > 1 ? "s" : "")} first (step 1), then the consumers (step 2) in any order.`
@@ -320,7 +355,7 @@ function setCard(set) {
   </div>`;
 }
 
-const BUCKETS = [
+const BUCKETS: { key: Bucket; title: string; desc: string; icon: string }[] = [
   { key: "you", title: "Waiting on you", desc: "The next move is yours.", icon: "user" },
   { key: "ready", title: "Ready to merge", desc: "Approved, mergeable, checks green. Go merge it.", icon: "checkCircle" },
   { key: "rotting", title: "Rotting", desc: "No activity in over a week. Close it, revive it, or leave a note.", icon: "clock" },
@@ -330,16 +365,11 @@ const BUCKETS = [
   { key: "bot", title: "Bot PRs", desc: "Automated PRs. Out of the way, but not hidden.", icon: "bot" },
 ];
 
-function renderBuckets(sets) {
-  const grouped = new Map(BUCKETS.map((b) => [b.key, []]));
-  for (const set of sets) {
-    grouped.get(set.bucket).push(set);
-  }
-
+function renderBuckets(sets: ChangeSet[]) {
   const sections = BUCKETS
-    .filter((b) => grouped.get(b.key).length > 0)
-    .map((b) => {
-      const list = grouped.get(b.key);
+    .map((b) => ({ b, list: sets.filter((s) => s.bucket === b.key) }))
+    .filter(({ list }) => list.length > 0)
+    .map(({ b, list }) => {
       const prCount = list.reduce((n, s) => n + s.members.length, 0);
       const body = list
         .map((s) => (s.members.length === 1 ? prRow(s.members[0]) : setCard(s)))
@@ -361,9 +391,9 @@ function renderBuckets(sets) {
   </div>`;
 }
 
-function renderChanges(visibleKeys) {
+function renderChanges(history: HistoryEvent[], visibleKeys: Set<string>) {
   const cutoff = sessionCutoff ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const events = appState.history
+  const events = history
     .filter((e) => e.at >= cutoff && visibleKeys.has(e.prKey))
     .slice()
     .sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -406,14 +436,14 @@ function renderChanges(visibleKeys) {
   </section>`;
 }
 
-function nodeBadge(x, y, text) {
+function nodeBadge(x: number, y: number, text: string): string {
   return `<g class="node-badge">
       <circle cx="${x}" cy="${y}" r="9" />
       <text x="${x}" y="${y + 3.5}">${escapeHtml(text)}</text>
     </g>`;
 }
 
-function wideNode({ pr, x, y, width, height, badge }) {
+function wideNode({ pr, x, y, width, height, badge }: NodeBox): string {
   const meta = statusMeta(pr.status);
   const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
   const textX = x + 14;
@@ -430,7 +460,7 @@ function wideNode({ pr, x, y, width, height, badge }) {
     </g>`;
 }
 
-function wideDiagram({ busY, nodes }) {
+function wideDiagram({ busY, nodes }: DiagramLayout): string {
   const ordered = nodes.some((n) => n.pr.isSpecPR);
   const busClass = ordered ? "bus" : "bus-dashed";
   const centers = nodes.map((n) => n.x + n.width / 2);
@@ -444,7 +474,7 @@ function wideDiagram({ busY, nodes }) {
   return bus + stems.join("") + nodes.map(wideNode).join("");
 }
 
-function verticalNode({ pr, x, y, width, height, badge }) {
+function verticalNode({ pr, x, y, width, height, badge }: NodeBox): string {
   const meta = statusMeta(pr.status);
   const dash = pr.manuallyLinked ? ' stroke-dasharray="4 3"' : "";
   return `
@@ -458,7 +488,7 @@ function verticalNode({ pr, x, y, width, height, badge }) {
     </g>`;
 }
 
-function verticalDiagram(set, { nodes }) {
+function verticalDiagram(set: ChangeSet, { nodes }: DiagramLayout): string {
   const first = nodes[0];
   const last = nodes[nodes.length - 1];
   const busClass = set.mergeOrderKnown ? "bus" : "bus-dashed";
@@ -466,7 +496,7 @@ function verticalDiagram(set, { nodes }) {
   return bus + nodes.map(verticalNode).join("");
 }
 
-function setDiagram(set, avail) {
+function setDiagram(set: ChangeSet, avail: number): string {
   const specs = set.members.filter((m) => m.isSpecPR);
   const consumers = set.members.filter((m) => !m.isSpecPR);
   const layout = diagramLayout(set, avail);
@@ -492,7 +522,7 @@ function setDiagram(set, avail) {
   </div>`;
 }
 
-function renderConnections(sets) {
+function renderConnections(sets: ChangeSet[]) {
   const multi = sets.filter((s) => s.members.length > 1);
   const solo = sets.filter((s) => s.members.length === 1).length;
   const soloNote = solo > 0
@@ -524,21 +554,25 @@ function renderConnections(sets) {
 
 for (const el of [els.buckets, els.changes, els.connections]) {
   el.addEventListener("click", (e) => {
-    const node = e.target.closest("[data-pr-key]");
-    if (node) openDrawer(node.dataset.prKey);
+    const node = e.target instanceof Element ? e.target.closest("[data-pr-key]") : null;
+    if (node) openDrawer(node.getAttribute("data-pr-key"));
   });
 }
 
-function findPr(prKey) {
+function findPr(prKey: string | null): DerivedPullRequest | null {
   return appState?.prs.find((p) => p.key === prKey) ?? null;
 }
 
-let lastFocused = null;
+let lastFocused: HTMLElement | null = null;
 let descriptionExpanded = false;
 
-function openDrawer(prKey) {
+function focusedElement(): HTMLElement | null {
+  return document.activeElement instanceof HTMLElement ? document.activeElement : null;
+}
+
+function openDrawer(prKey: string | null) {
   if (!findPr(prKey)) return;
-  lastFocused = document.activeElement;
+  lastFocused = focusedElement();
   if (prKey !== drawerPrKey) descriptionExpanded = false;
   drawerPrKey = prKey;
   renderDrawer();
@@ -563,40 +597,47 @@ document.addEventListener("keydown", (e) => {
   else if (drawerPrKey) closeDrawer();
 });
 
-let noteSaveTimer = null;
-function scheduleNoteSave(prKey, text, hintEl) {
+let noteSaveTimer: number | undefined;
+let unsavedNote: UnsavedNote | null = null;
+function scheduleNoteSave(prKey: string, text: string, hintEl: HTMLElement) {
   clearTimeout(noteSaveTimer);
-  if (hintEl) hintEl.textContent = "Saving…";
+  hintEl.textContent = "Saving…";
   noteSaveTimer = setTimeout(async () => {
-    const res = await fetch(`/api/notes/${encodeURIComponent(prKey)}`, {
+    const state = await requestState(`/api/notes/${encodeURIComponent(prKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    appState = await res.json();
-    if (hintEl) hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
+    if (!state) {
+      unsavedNote = { prKey, text };
+      hintEl.textContent = "Could not save note.";
+      return;
+    }
+    appState = state;
+    if (unsavedNote?.prKey === prKey) unsavedNote = null;
+    hintEl.textContent = text.trim() === "" ? "Note cleared." : "Saved.";
     render({ skipDrawer: true });
   }, 800);
 }
 
-async function handleLinkChange(prKey, value) {
-  if (value === "__branch__") {
-    await fetch(`/api/links/${encodeURIComponent(prKey)}`, { method: "DELETE" });
-  } else {
-    await fetch("/api/links", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prKey, targetSetKey: value }),
-    });
-  }
-  await fetchState();
+async function handleLinkChange(prKey: string, value: string) {
+  const state = value === "__branch__"
+    ? await requestState(`/api/links/${encodeURIComponent(prKey)}`, { method: "DELETE" })
+    : await requestState("/api/links", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prKey, targetSetKey: value }),
+      });
+  if (state) appState = state;
+  // On failure too: re-rendering from the last good state puts the link picker back on the saved set.
+  render();
 }
 
 const CHECK_OK = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
-const OWNER_LABEL = { you: "You", author: "The author", reviewers: "Reviewers" };
+const OWNER_LABEL: Record<Owner, string> = { you: "You", author: "The author", reviewers: "Reviewers" };
 
 function renderDrawer() {
-  if (!drawerPrKey) return;
+  if (!appState || !drawerPrKey) return;
   const pr = findPr(drawerPrKey);
   if (!pr) return;
 
@@ -605,6 +646,10 @@ function renderDrawer() {
 
   const meta = statusMeta(pr.status);
   const note = appState.notes[pr.key];
+  const noteUnsaved = unsavedNote?.prKey === pr.key;
+  const noteHint = noteUnsaved
+    ? "Could not save note."
+    : note ? `Saved ${timeAgo(note.savedAt)}.` : "Saves automatically. Clearing the text deletes the note.";
   const set = appState.sets.find((s) => s.members.some((m) => m.key === pr.key));
 
   const linkOptions = appState.sets
@@ -701,8 +746,8 @@ function renderDrawer() {
 
       <div class="field">
         <label class="field-label" for="note-input">Note</label>
-        <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${raw(escapeHtml(note?.text ?? ""))}</textarea>
-        <div class="field-hint" id="note-hint">${raw(note ? `Saved ${escapeHtml(timeAgo(note.savedAt))}.` : "Saves automatically. Clearing the text deletes the note.")}</div>
+        <textarea id="note-input" placeholder="Why is this stuck? What was agreed?">${drawerNoteText(pr.key, appState.notes, unsavedNote)}</textarea>
+        <div class="field-hint" id="note-hint">${noteHint}</div>
       </div>
 
       <div class="field">
@@ -738,23 +783,25 @@ function renderDrawer() {
         ${raw(reviewsHtml)}
       </div>
 
-      ${raw(membersHtml ? html`<div class="field">
+      ${raw(set && membersHtml ? html`<div class="field">
         <span class="field-label">Change set — ${set.label}${raw(set.mergeOrderKnown ? " (merge steps)" : " (order unknown)")}</span>
         ${raw(membersHtml)}
       </div>` : "")}
     </div>`;
 
-  const hint = document.getElementById("note-hint");
-  document.getElementById("drawer-close-btn").addEventListener("click", closeDrawer);
-  document.getElementById("note-input").addEventListener("input", (e) => scheduleNoteSave(pr.key, e.target.value, hint));
-  document.getElementById("link-select").addEventListener("change", (e) => handleLinkChange(pr.key, e.target.value));
+  const hint = byId("note-hint", HTMLElement);
+  const noteInput = byId("note-input", HTMLTextAreaElement);
+  const linkSelect = byId("link-select", HTMLSelectElement);
+  byId("drawer-close-btn", HTMLButtonElement).addEventListener("click", closeDrawer);
+  noteInput.addEventListener("input", () => scheduleNoteSave(pr.key, noteInput.value, hint));
+  linkSelect.addEventListener("change", () => handleLinkChange(pr.key, linkSelect.value));
   els.drawer.querySelectorAll("[data-member-key]").forEach((row) => {
-    row.addEventListener("click", () => openDrawer(row.dataset.memberKey));
+    row.addEventListener("click", () => openDrawer(row.getAttribute("data-member-key")));
   });
   els.drawer.querySelectorAll("[data-join-set]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const target = btn.dataset.joinSet;
-      handleLinkChange(pr.key, target === pr.branchSetKey ? "__branch__" : target);
+      const target = btn.getAttribute("data-join-set");
+      if (target) handleLinkChange(pr.key, target === pr.branchSetKey ? "__branch__" : target);
     });
   });
 
@@ -774,44 +821,45 @@ let settingsOpen = false;
 // The drawer is one form. Nothing in it takes effect until Save — the theme included, even
 // though it is stored in the browser — so every section has the same contract. Reset fills the
 // form with the defaults and still needs a Save.
-function readSettingsForm() {
+function readSettingsForm(): Settings {
+  const checkedTheme = document.querySelector('input[name="theme"]:checked');
   return {
-    theme: document.querySelector('input[name="theme"]:checked')?.value ?? "auto",
-    notify: document.getElementById("notify-on").checked,
+    theme: checkedTheme instanceof HTMLInputElement ? checkedTheme.value : "auto",
+    notify: byId("notify-on", HTMLInputElement).checked,
     specRule: {
-      useRepoSuffix: document.getElementById("rule-suffix-on").checked,
-      repoSuffixes: splitWords(document.getElementById("rule-suffixes").value),
-      useFileKeywords: document.getElementById("rule-files-on").checked,
-      fileKeywords: splitWords(document.getElementById("rule-keywords").value),
+      useRepoSuffix: byId("rule-suffix-on", HTMLInputElement).checked,
+      repoSuffixes: splitWords(byId("rule-suffixes", HTMLInputElement).value),
+      useFileKeywords: byId("rule-files-on", HTMLInputElement).checked,
+      fileKeywords: splitWords(byId("rule-keywords", HTMLInputElement).value),
     },
   };
 }
 
-function savedSettings() {
-  return { theme: currentTheme().key, notify: appState.notify, specRule: appState.specRule };
+function savedSettings(state: StatePayload): Settings {
+  return { theme: currentTheme().key, notify: state.notify, specRule: state.specRule };
 }
 
-function fillSettingsForm({ theme, notify, specRule }) {
-  for (const input of document.querySelectorAll('input[name="theme"]')) input.checked = input.value === theme;
-  document.getElementById("notify-on").checked = notify;
-  document.getElementById("rule-suffix-on").checked = specRule.useRepoSuffix;
-  document.getElementById("rule-suffixes").value = specRule.repoSuffixes.join(", ");
-  document.getElementById("rule-files-on").checked = specRule.useFileKeywords;
-  document.getElementById("rule-keywords").value = specRule.fileKeywords.join(", ");
+function fillSettingsForm({ theme, notify, specRule }: Settings) {
+  for (const input of byId("theme-picker", HTMLElement).querySelectorAll("input")) input.checked = input.value === theme;
+  byId("notify-on", HTMLInputElement).checked = notify;
+  byId("rule-suffix-on", HTMLInputElement).checked = specRule.useRepoSuffix;
+  byId("rule-suffixes", HTMLInputElement).value = specRule.repoSuffixes.join(", ");
+  byId("rule-files-on", HTMLInputElement).checked = specRule.useFileKeywords;
+  byId("rule-keywords", HTMLInputElement).value = specRule.fileKeywords.join(", ");
   updateSettingsForm();
 }
 
 // Re-derives everything that depends on the form's current values: the theme segment highlight,
 // the spec-rule preview, the disabled inputs, and whether Save has anything to save.
 function updateSettingsForm() {
-  if (!settingsOpen) return;
+  if (!settingsOpen || !appState) return;
   const form = readSettingsForm();
-  for (const seg of document.querySelectorAll("#theme-picker .segment")) seg.classList.toggle("is-on", seg.querySelector("input").value === form.theme);
-  document.getElementById("theme-hint").textContent = THEMES.find((t) => t.key === form.theme).hint;
+  for (const seg of document.querySelectorAll("#theme-picker .segment")) seg.classList.toggle("is-on", seg.querySelector("input")?.value === form.theme);
+  byId("theme-hint", HTMLElement).textContent = themeFor(form.theme).hint;
 
   const rule = form.specRule;
-  const preview = document.getElementById("rule-preview");
-  const prs = appState?.prs ?? [];
+  const preview = byId("rule-preview", HTMLElement);
+  const prs = appState.prs;
   const inactive = (!rule.useRepoSuffix || rule.repoSuffixes.length === 0) && (!rule.useFileKeywords || rule.fileKeywords.length === 0);
   if (inactive) {
     preview.innerHTML = html`${raw(icon("alertCircle"))}Nothing matches — no PR will count as a spec PR, so every set's merge order becomes unknown.`;
@@ -821,18 +869,18 @@ function updateSettingsForm() {
     preview.textContent = `Would mark ${n} of ${plural(prs.length, "open PR", "open PRs")} as spec PRs.`;
     preview.className = "rule-preview";
   }
-  document.getElementById("rule-suffixes").disabled = !rule.useRepoSuffix;
-  document.getElementById("rule-keywords").disabled = !rule.useFileKeywords;
+  byId("rule-suffixes", HTMLInputElement).disabled = !rule.useRepoSuffix;
+  byId("rule-keywords", HTMLInputElement).disabled = !rule.useFileKeywords;
 
-  const dirty = !sameSettings(form, savedSettings());
-  document.getElementById("settings-save").disabled = !dirty;
-  const hint = document.getElementById("settings-hint");
+  const dirty = !sameSettings(form, savedSettings(appState));
+  byId("settings-save", HTMLButtonElement).disabled = !dirty;
+  const hint = byId("settings-hint", HTMLElement);
   if (!hint.dataset.sticky) hint.textContent = dirty ? "Unsaved changes." : "";
 }
 
 function renderSettings() {
-  const rule = appState?.specRule;
-  if (!rule) return;
+  if (!appState) return;
+  const { specRule: rule, defaults } = appState;
   const theme = currentTheme();
   els.settings.innerHTML = html`<div class="drawer-head">
       <div class="drawer-top">
@@ -883,31 +931,37 @@ function renderSettings() {
       <button type="button" class="btn btn-primary" id="settings-save">Save</button>
     </div>`;
 
-  document.getElementById("settings-close-btn").addEventListener("click", closeSettings);
-  document.getElementById("settings-save").addEventListener("click", saveSettings);
-  document.getElementById("settings-cancel").addEventListener("click", closeSettings);
-  document.getElementById("settings-reset").addEventListener("click", () => {
-    fillSettingsForm({ theme: "auto", notify: appState.defaults.notify, specRule: appState.defaults.specRule });
+  byId("settings-close-btn", HTMLButtonElement).addEventListener("click", closeSettings);
+  byId("settings-save", HTMLButtonElement).addEventListener("click", saveSettings);
+  byId("settings-cancel", HTMLButtonElement).addEventListener("click", closeSettings);
+  byId("settings-reset", HTMLButtonElement).addEventListener("click", () => {
+    fillSettingsForm({ theme: "auto", notify: defaults.notify, specRule: defaults.specRule });
   });
   updateSettingsForm();
 }
 
 async function saveSettings() {
   const form = readSettingsForm();
-  const hint = document.getElementById("settings-hint");
+  const hint = byId("settings-hint", HTMLElement);
   hint.dataset.sticky = "1";
   hint.textContent = "Saving…";
-  document.getElementById("settings-save").disabled = true;
-  const res = await fetch("/api/settings", {
+  byId("settings-save", HTMLButtonElement).disabled = true;
+  const state = await requestState("/api/settings", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ notify: form.notify, specRule: form.specRule }),
   });
-  appState = await res.json();
+  if (!state) {
+    hint.textContent = "Could not save settings.";
+    byId("settings-save", HTMLButtonElement).disabled = false;
+    setTimeout(() => { delete hint.dataset.sticky; if (settingsOpen) updateSettingsForm(); }, 2500);
+    return;
+  }
+  appState = state;
   setTheme(form.theme);
   render({ skipDrawer: true });
   renderSettings();
-  const h = document.getElementById("settings-hint");
+  const h = byId("settings-hint", HTMLElement);
   h.dataset.sticky = "1";
   h.textContent = "Saved.";
   setTimeout(() => { delete h.dataset.sticky; if (settingsOpen) updateSettingsForm(); }, 2500);
@@ -916,7 +970,7 @@ async function saveSettings() {
 function openSettings() {
   if (drawerPrKey) closeDrawer();
   settingsOpen = true;
-  lastFocused = document.activeElement;
+  lastFocused = focusedElement();
   renderSettings();
   els.settings.classList.remove("hidden");
   els.scrim.classList.remove("hidden");
@@ -936,7 +990,7 @@ els.settingsBtn.addEventListener("click", openSettings);
 els.settings.addEventListener("input", updateSettingsForm);
 els.settings.addEventListener("change", updateSettingsForm);
 
-let resizeTimer = null;
+let resizeTimer: number | undefined;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => render({ skipDrawer: drawerPrKey != null }), 150);
